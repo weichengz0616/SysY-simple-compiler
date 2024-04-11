@@ -132,7 +132,7 @@ std::string visit(const koopa_raw_integer_t &integer)
     std::string reg;
     if (integer.value)
     {
-        reg = regs[reg_now];
+        reg = regs[reg_now % 14];
         std::cout << "\tli " << reg << ", " << integer.value << std::endl;
         reg_now++;
     }
@@ -162,7 +162,7 @@ std::string visit(const koopa_raw_binary_t &binary)
     {
         rhs_reg = rv2reg[binary.rhs];
     }
-    reg = regs[reg_now];
+    reg = regs[reg_now % 14];
 
     switch (binary.op)
     {
