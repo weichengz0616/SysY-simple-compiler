@@ -1,12 +1,16 @@
 	.text
 	.globl main
 main:
-	li t0, 2
-	xor t1, t0, x0
-	snez t1, t1
-	li t2, 43
-	xor t3, t2, x0
-	snez t3, t3
-	or t4, t3, t1
-	mv a0, t4
+	li t0, 1
+	li t1, 2
+	add t1, t0, t1
+	li t2, 3
+	add t2, t1, t2
+	li t3, 4
+	li t4, 5
+	add t4, t3, t4
+	li t5, 6
+	add t5, t4, t5
+	add t5, t2, t5
+	mv a0, t5
 	ret
