@@ -162,8 +162,8 @@ std::string visit(const koopa_raw_binary_t &binary)
     {
         rhs_reg = rv2reg[binary.rhs];
     }
-    //reg = regs[reg_now % 14];
-    reg = rhs_reg;
+    reg = regs[reg_now % 14];
+    //reg = rhs_reg;
 
     switch (binary.op)
     {
@@ -218,7 +218,7 @@ std::string visit(const koopa_raw_binary_t &binary)
         break;
     }
 
-    //reg_now++;
+    reg_now++;
     return reg;
 }
 
