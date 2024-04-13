@@ -138,6 +138,9 @@ public:
 			std::string exp_string = exp->Dump();
 			// 此时lval必定是变量, 否则是语义错误
 			std::string lval_string = lval->Dump();
+			int32_t new_value = exp->getValue();
+			assert(symbol_table.find(lval_string) != symbol_table.end());
+			symbol_table[lval_string].value = new_value;
 			std::cout << "\tstore " << exp_string << " , @" << lval_string << std::endl;
 		}
 

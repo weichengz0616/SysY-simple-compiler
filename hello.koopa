@@ -1,11 +1,13 @@
 fun @main(): i32
 {
-%%entry:
+%entry:
 	@x= alloc i32
-	store 26013 , @x
+	store 11 , @x
 	%0 = load @x
-	%1 = add %0, 1
+	%1 = add %0, 111
 	store %1 , @x
-	%2 = load @x
+	@a= alloc i32
+	store -79 , @a
+	%2 = load @a
 	ret %2
 }
