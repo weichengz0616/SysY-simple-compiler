@@ -31,8 +31,13 @@
 
 //lv 4
 int main() {
-  const int x = 1 + 1;
-  const int y = -61 + (2 + 3) * (23 + 327);
-  return y;
+  // const int x = 1 + 1;
+  // const int y = -61 + (2 + 3) * (23 + 327);
+  // return y;
+
+  const int y = 21783 + (213 - 12) * 21;
+  int x = y + 9;
+  x = x + 1;
+  return x;
 }
 
