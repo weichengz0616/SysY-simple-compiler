@@ -1,8 +1,5 @@
 fun @main(): i32
 {
 %entry:
-	%0 = ne 2, 0
-	%1 = ne 43, 0
-	%2 = or %1, %0
-	ret %2
+	ret 1689
 }

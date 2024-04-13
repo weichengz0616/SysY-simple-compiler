@@ -4,11 +4,26 @@
 #include <iostream>
 #include <memory>
 #include <string>
+#include <vector>
+#include <unordered_map>
+
 
 // 全局变量
 // 改成static能链接
 // 咋不能全局??? 没道理啊
 static int reg_cnt = 0;
+
+// lv 4.1
+// 常量求值
+// 符号表
+static std::unordered_map<std::string, int32_t> symbol_table;
+
+
+
+
+
+
+
 
 // 所有 AST 的基类
 class BaseAST
@@ -16,6 +31,9 @@ class BaseAST
 public:
 	virtual ~BaseAST() = default;
 	virtual std::string Dump() const = 0;
+	// 给各种表达式求值用
+	// 非纯的虚函数必须有定义, 否则链接报错
+	virtual int32_t getValue() const { return 0; }
 };
 
 // ================================= lv1 & 2 ===========================
@@ -66,11 +84,15 @@ public:
 class BlockAST : public BaseAST
 {
 public:
-	std::unique_ptr<BaseAST> stmt;
+	std::vector<std::unique_ptr<BaseAST>> block_items;
 	std::string Dump() const override
 	{
 		std::cout << "{\n";
-		stmt->Dump();
+		//stmt->Dump();
+		for(auto i = block_items.begin(); i != block_items.end(); i++)
+		{
+			(*i)->Dump();
+		}
 		std::cout << "}\n";
 
 		return std::string();
@@ -117,6 +139,11 @@ public:
 
 		return std::string();
 	}
+
+	int32_t getValue() const override
+	{
+		return lor_exp->getValue();
+	}
 };
 
 class PrimaryExpAST : public BaseAST
@@ -124,6 +151,7 @@ class PrimaryExpAST : public BaseAST
 public:
 	std::unique_ptr<BaseAST> exp;
 	int32_t number;
+	std::unique_ptr<BaseAST> lval;
 
 	std::string Dump() const override
 	{
@@ -131,14 +159,32 @@ public:
 		{
 			return exp->Dump();
 		}
-		else
+		else if(lval)
 		{
 			// std::cout << " " << number << " ";
-
-			return std::to_string(number);
+			return lval->Dump();
 		}
+		else
+			return std::to_string(number);
 
 		return std::string();
+	}
+
+	int32_t getValue() const override
+	{
+		if(exp)
+		{
+			return exp->getValue();
+		}
+		else if(lval)
+		{
+			return lval->getValue();
+		}
+		else
+		{
+			return number;
+		}
+		return 0;
 	}
 };
 
@@ -214,6 +260,31 @@ public:
 
 		return std::string();
 	}
+
+	int32_t getValue() const override
+	{
+		if(primary_exp)
+		{
+			return primary_exp->getValue();
+		}
+		else if(unary_op && unary_exp)
+		{
+			std::string op = unary_op->Dump();
+			if(op == "!")
+			{
+				return 0 == unary_exp->getValue();
+			}
+			else if(op == "-")
+			{
+				return 0 - unary_exp->getValue();
+			}
+			else if(op == "+")
+			{
+				return unary_exp->getValue();
+			}
+		}
+		return 0;	
+	}
 };
 
 class UnaryOpAST : public BaseAST
@@ -241,6 +312,7 @@ public:
 
 		return std::string();
 	}
+
 };
 
 class MulExpAST : public BaseAST
@@ -276,6 +348,24 @@ public:
 
 		return std::string();
 	}
+
+	int32_t getValue() const override
+	{
+		if(op)
+		{
+			if(op == '*')
+				return mul_exp->getValue() * unary_exp->getValue();
+			else if(op == '/')
+				return mul_exp->getValue() / unary_exp->getValue();
+			else if(op == '%')
+				return mul_exp->getValue() % unary_exp->getValue();
+		}
+		else
+		{
+			return unary_exp->getValue();
+		}
+		return 0;	
+	}
 };
 
 class AddExpAST : public BaseAST
@@ -308,6 +398,22 @@ public:
 		}
 
 		return std::string();
+	}
+
+	int32_t getValue() const override
+	{
+		if(op)
+		{
+			if(op == '+')
+				return add_exp->getValue() + mul_exp->getValue();
+			else if(op == '-')
+				return add_exp->getValue() - mul_exp->getValue();
+		}
+		else
+		{
+			return mul_exp->getValue();
+		}
+		return 0;	
 	}
 };
 
@@ -356,6 +462,31 @@ public:
 		
 		return std::string();
 	}
+
+	int32_t getValue() const override
+	{
+		if(type == ADD)
+		{
+			return add_exp->getValue();
+		}
+		else if(type == L)
+		{
+			return rel_exp->getValue() < add_exp->getValue();
+		}
+		else if(type == G)
+		{
+			return rel_exp->getValue() > add_exp->getValue();
+		}
+		else if(type == LE)
+		{
+			return rel_exp->getValue() <= add_exp->getValue();
+		}
+		else if(type == GE)
+		{
+			return rel_exp->getValue() >= add_exp->getValue();
+		}
+		return 0;	
+	}
 };
 
 class EqExpAST : public BaseAST
@@ -394,6 +525,23 @@ public:
 		}
 		
 		return std::string();
+	}
+
+	int32_t getValue() const override
+	{
+		if(type == REL)
+		{
+			return rel_exp->getValue();
+		}
+		else if(type == EQ)
+		{
+			return rel_exp->getValue() == eq_exp->getValue();
+		}
+		else if(type == NEQ)
+		{
+			return rel_exp->getValue() != eq_exp->getValue();
+		}
+		return 0;	
 	}
 };
 
@@ -434,6 +582,19 @@ public:
 		
 		return std::string();
 	}
+
+	int32_t getValue() const override
+	{
+		if(type == EQ)
+		{
+			return eq_exp->getValue();
+		}
+		else if(type == LAND)
+		{
+			return land_exp->getValue() && eq_exp->getValue();
+		}
+		return 0;	
+	}
 };
 
 class LOrExpAST : public BaseAST
@@ -472,6 +633,151 @@ public:
 		}
 		
 		return std::string();
+	}
+
+	int32_t getValue() const override
+	{
+		if(type == LAND)
+		{
+			return land_exp->getValue();
+		}
+		else if(type == LOR)
+		{
+			return lor_exp->getValue() || land_exp->getValue();
+		}
+		return 0;	
+	}
+};
+
+
+// ================================= lv4 ===========================
+class DeclAST : public BaseAST
+{
+public:
+	std::unique_ptr<BaseAST> const_decl;
+
+	std::string Dump() const override
+	{
+		const_decl->Dump();
+		return std::string();
+	}
+};
+
+class ConstDeclAST : public BaseAST
+{
+public:
+	std::unique_ptr<BaseAST> btype;
+	std::vector<std::unique_ptr<BaseAST>> const_defs;// >= 1
+
+	std::string Dump() const override
+	{
+		for(auto i = const_defs.begin(); i != const_defs.end(); i++)
+		{
+			(*i)->Dump();
+		}
+		return std::string();
+	}
+};
+
+class BTypeAST : public BaseAST
+{
+public:
+
+
+	std::string Dump() const override
+	{
+
+		return std::string();
+	}
+};
+
+class ConstDefAST : public BaseAST
+{
+public:
+	std::string ident;
+	std::unique_ptr<BaseAST> const_init_val;
+
+	std::string Dump() const override
+	{
+		updateSymbolTable();
+		return std::string();
+	}
+
+	void updateSymbolTable() const
+	{
+		symbol_table[ident] = const_init_val->getValue();
+	}
+};
+
+class ConstInitValAST : public BaseAST
+{
+public:
+	std::unique_ptr<BaseAST> const_exp;
+
+	std::string Dump() const override
+	{
+		return std::string();
+	}
+
+	int32_t getValue() const override
+	{
+		return const_exp->getValue();
+	}
+};
+
+class BlockItemAST : public BaseAST
+{
+public:
+	enum TYPE {DECL, STMT};
+	TYPE type;
+	std::unique_ptr<BaseAST> decl;
+	std::unique_ptr<BaseAST> stmt;
+
+	std::string Dump() const override
+	{
+		if(type == DECL)
+		{
+			decl->Dump();
+		}
+		else if(type == STMT)
+		{
+			stmt->Dump();
+		}
+		return std::string();
+	}
+};
+
+class LValAST : public BaseAST
+{
+public:
+	std::string ident;
+
+	std::string Dump() const override
+	{
+		return std::to_string(getValue());
+		return std::string();
+	}
+
+	int32_t getValue() const override
+	{
+		assert(symbol_table.find(ident) != symbol_table.end());
+		return symbol_table[ident];
+	}
+};
+
+class ConstExpAST : public BaseAST
+{
+public:
+	std::unique_ptr<BaseAST> exp;
+
+	std::string Dump() const override
+	{
+		return std::string();
+	}
+
+	int32_t getValue() const override
+	{
+		return exp->getValue();
 	}
 };
 

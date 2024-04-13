@@ -13,17 +13,26 @@
 // }
 
 
-// lv 3.1
+// lv 3
+// int main() {
+//   //return +(- -!6);  // 看起来像个颜文字
+//   //return - + ! 6;
+
+//   //return - 6;
+//   //return 6;
+//   //return 1 * 2 * 3;
+
+//   //return -61 + (2 + 3) * (23 + 327);
+
+//   //return 2 || 43;
+//   return (1 + 2 + 3) + (4 + 5 + 6);
+// }
+
+
+//lv 4
 int main() {
-  //return +(- -!6);  // 看起来像个颜文字
-  //return - + ! 6;
-
-  //return - 6;
-  //return 6;
-  //return 1 * 2 * 3;
-
-  //return -61 + (2 + 3) * (23 + 327);
-
-  //return 2 || 43;
-  return (1 + 2 + 3) + (4 + 5 + 6);
+  const int x = 1 + 1;
+  const int y = -61 + (2 + 3) * (23 + 327);
+  return y;
 }
+

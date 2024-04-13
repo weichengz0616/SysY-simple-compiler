@@ -9,6 +9,7 @@
 #include <iostream>
 #include <memory>
 #include <string>
+#include <vector>
 #include "AST.h"
 
 // 声明 lexer 函数和错误处理函数
@@ -23,21 +24,24 @@ using namespace std;
 %parse-param { std::unique_ptr<BaseAST> &ast }
 
 // yylval 的定义, 我们把它定义成了一个联合体 (union)
-
+// union中不能有默认构造函数??
 %union {
   std::string *str_val;
   int int_val;
   BaseAST *ast_val;
+  std::vector<std::unique_ptr<BaseAST>>* vec_val;
 }
 
 // lexer 返回的所有 token 种类的声明
-%token INT RETURN LE GE EQ NEQ LAND LOR
+%token INT RETURN LE GE EQ NEQ LAND LOR CONST
 %token <str_val> IDENT
 %token <int_val> INT_CONST
 
 // 非终结符的类型定义
 %type <ast_val> FuncDef FuncType Block Stmt
 %type <ast_val> Exp PrimaryExp UnaryExp UnaryOp MulExp AddExp RelExp EqExp LAndExp LOrExp
+%type <ast_val> Decl ConstDecl BType ConstDef ConstInitVal BlockItem LVal ConstExp
+%type <vec_val> BlockItemList ConstDefList
 %type <int_val> Number
 
 %%
@@ -70,11 +74,50 @@ FuncType
   $$ = ast;
 };
 
+
+// 右值引用/move语义在汇编层面如何实现的??
+// unique_ptr只能move
+// 注意这里vector怎么不能向IDENT那样解引用赋值??
 Block
-: '{' Stmt '}' 
+: '{' BlockItemList '}' 
 {
   auto ast = new BlockAST();
-  ast->stmt = unique_ptr<BaseAST>($2);
+  auto tmp = $2;
+  for(auto i = tmp->begin(); i != tmp->end();i++)
+  {
+    ast->block_items.push_back(move(*i));
+  }
+  
+  //ast->block_items = *unique_ptr<vector<unique_ptr<BaseAST>>>($2);
+  $$ = ast;
+};
+
+BlockItemList
+:
+{
+  auto tmp = new vector<unique_ptr<BaseAST>>();
+  $$ = tmp;
+}
+| BlockItemList BlockItem // 使用左递归更好???
+{
+  auto tmp = $1;// move
+  tmp->push_back(unique_ptr<BaseAST>($2));
+  $$ = tmp;
+};
+
+BlockItem
+: Decl
+{
+  auto ast = new BlockItemAST();
+  ast->type = BlockItemAST::DECL;
+  ast->decl = unique_ptr<BaseAST>($1);
+  $$ = ast;
+}
+| Stmt
+{
+  auto ast = new BlockItemAST();
+  ast->type = BlockItemAST::STMT;
+  ast->stmt = unique_ptr<BaseAST>($1);
   $$ = ast;
 };
 
@@ -116,6 +159,12 @@ PrimaryExp
 {
   auto ast = new PrimaryExpAST();
   ast->number = $1;
+  $$ = ast;
+}
+| LVal
+{
+  auto ast = new PrimaryExpAST();
+  ast->lval = unique_ptr<BaseAST>($1);
   $$ = ast;
 };
 
@@ -307,6 +356,88 @@ LOrExp
   ast->type = LOrExpAST::LOR;
   ast->lor_exp = unique_ptr<BaseAST>($1);
   ast->land_exp = unique_ptr<BaseAST>($3);
+  $$ = ast;
+};
+
+
+// ================================= lv4 ===========================
+Decl
+: ConstDecl
+{
+  auto ast = new DeclAST();
+  ast->const_decl = unique_ptr<BaseAST>($1);
+  $$ = ast;
+};
+
+ConstDecl
+: CONST BType ConstDefList ';'
+{
+  auto ast = new ConstDeclAST();
+  ast->btype = unique_ptr<BaseAST>($2);
+  // vector怎么初始化?????
+  auto tmp = $3;
+  for(auto i = tmp->begin(); i != tmp->end();i++)
+  {
+    ast->const_defs.push_back(move(*i));
+  }
+  //ast->const_defs = *unique_ptr<vector<unique_ptr<BaseAST>>>($3);
+
+  $$ = ast;
+};
+
+ConstDefList
+: ConstDef
+{
+  auto tmp = new vector<unique_ptr<BaseAST>>();
+  tmp->push_back(unique_ptr<BaseAST>($1));
+  $$ = tmp;
+}
+| ConstDefList ',' ConstDef
+{
+  auto tmp = $1;
+  tmp->push_back(unique_ptr<BaseAST>($3));
+  $$ = tmp;
+}
+
+BType
+: INT
+{
+  auto ast = new BTypeAST();
+  $$ = ast;
+};
+
+ConstDef
+: IDENT '=' ConstInitVal
+{
+  auto ast = new ConstDefAST();
+  // string的处理
+  ast->ident = *unique_ptr<string>($1);
+  ast->const_init_val = unique_ptr<BaseAST>($3);
+  $$ = ast;
+};
+
+ConstInitVal
+: ConstExp
+{
+  auto ast = new ConstInitValAST();
+  ast->const_exp = unique_ptr<BaseAST>($1);
+  $$ = ast;
+};
+
+LVal
+: IDENT
+{
+  auto ast = new LValAST();
+  // string
+  ast->ident = *unique_ptr<string>($1);
+  $$ = ast;
+};
+
+ConstExp
+: Exp
+{
+  auto ast = new ConstExpAST();
+  ast->exp = unique_ptr<BaseAST>($1);
   $$ = ast;
 };
 
