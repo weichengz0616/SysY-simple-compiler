@@ -12,6 +12,10 @@
 // 咋不能全局??? 没道理啊
 static int reg_cnt = 0;
 
+// 处理多个return语句, 只能return一次
+// TODO: 此时只有main函数, 一个全局变量记录即可, 多个函数之后再处理.
+static bool returned_flag = false;
+
 // lv 4.1
 // 常量求值
 // 符号表
@@ -127,6 +131,9 @@ public:
 	{
 		if (type == RETURN)
 		{
+			if(returned_flag)
+				return std::string();
+			returned_flag = true;
 			//std::cout << "stmt dump...return\n";
 			std::string exp_string = exp->Dump();
 			std::cout << "\tret "
