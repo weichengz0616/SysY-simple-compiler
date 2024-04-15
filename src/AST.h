@@ -131,8 +131,6 @@ public:
 	{
 		if (type == RETURN)
 		{
-			if(returned_flag)
-				return std::string();
 			returned_flag = true;
 			//std::cout << "stmt dump...return\n";
 			std::string exp_string = exp->Dump();
@@ -818,6 +816,8 @@ public:
 
 	std::string Dump() const override
 	{
+		if(returned_flag)
+				return std::string();
 		if (type == DECL)
 		{
 			decl->Dump();

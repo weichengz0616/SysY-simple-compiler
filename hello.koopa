@@ -2,4 +2,6 @@ fun @main(): i32
 {
 %entry:
 	ret 1
+	@x= alloc i32
+	store 1 , @x
 }

@@ -49,6 +49,9 @@ int main() {
   // return x + 111;
 
   return 1;
+  int x = 1;
   return 2;
+  return 3;
+  return 4;
 }
 
