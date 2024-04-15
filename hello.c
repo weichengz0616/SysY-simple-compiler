@@ -37,10 +37,14 @@ int main() {
 
   // const int y = 21783 + (213 - 12) * 21;
   // int x = y + 9;
-  int x = 11;
-  x = x + 111;
-  int a = x + 10 + 21 -232;
-  //a = 1;
-  return a;
+  // int x = 11;
+  // x = x + 111;
+  // int a = x + 10 + 21 -232;
+  // //a = 1;
+  // return a;
+
+  int x = 10;
+  x = x + 1;
+  return x;
 }
 

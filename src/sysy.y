@@ -83,11 +83,14 @@ Block
 {
   auto ast = new BlockAST();
   auto tmp = $2;
-  for(auto i = tmp->begin(); i != tmp->end();i++)
+  ast->block_items = vector<unique_ptr<BaseAST>>();
+
+  // unique_ptr 必须是引用
+  for(auto& i : *tmp)
   {
-    ast->block_items.push_back(move(*i));
+    ast->block_items.push_back(move(i));
   }
-  
+  delete tmp;
   //ast->block_items = *unique_ptr<vector<unique_ptr<BaseAST>>>($2);
   $$ = ast;
 };
@@ -393,12 +396,12 @@ ConstDecl
   ast->btype = unique_ptr<BaseAST>($2);
   // vector怎么初始化?????
   auto tmp = $3;
-  for(auto i = tmp->begin(); i != tmp->end();i++)
+  for(auto& i : *tmp)
   {
-    ast->const_defs.push_back(move(*i));
+    ast->const_defs.push_back(move(i));
   }
   //ast->const_defs = *unique_ptr<vector<unique_ptr<BaseAST>>>($3);
-
+  delete tmp;
   $$ = ast;
 };
 
@@ -464,11 +467,11 @@ VarDecl
   auto ast = new VarDeclAST();
   ast->btype = unique_ptr<BaseAST>($1);
   auto tmp = $2;
-  for(auto i = tmp->begin(); i != tmp->end();i++)
+  for(auto& i : *tmp)
   {
-    ast->var_defs.push_back(move(*i));
+    ast->var_defs.push_back(move(i));
   }
-
+  delete tmp;
   $$ = ast;
 };
 

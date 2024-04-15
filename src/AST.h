@@ -19,6 +19,7 @@ static int reg_cnt = 0;
 
 struct VALUE
 {
+	// tagged
 	enum VALUE_TYPE
 	{
 		CONST,
