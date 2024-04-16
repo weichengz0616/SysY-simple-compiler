@@ -151,10 +151,12 @@ void visit(const koopa_raw_value_t &value)
         // 访问 binary 指令
         //rv2reg[value] = visit(kind.data.binary);
         rv2offset[value] = visit(kind.data.binary);
+        assert(rv2offset[value] <= 2048);
         std::cout << std::endl;
         break;
     case KOOPA_RVT_LOAD:
         rv2offset[value] = visit(kind.data.load);
+        assert(rv2offset[value] <= 2048);
         std::cout << std::endl;
         break;
     case KOOPA_RVT_STORE:
@@ -163,6 +165,7 @@ void visit(const koopa_raw_value_t &value)
         break;
     case KOOPA_RVT_ALLOC:
         rv2offset[value] = visit(kind.data.global_alloc);
+        assert(rv2offset[value] <= 2048);
         break;
     case KOOPA_RVT_BRANCH:
         visit(kind.data.branch);
@@ -309,7 +312,7 @@ int32_t visit(const koopa_raw_binary_t &binary)
     }
 
     // reg_now++;
-
+    assert(sp_offset <= 2048);
     std::cout << "\tsw t0, " << sp_offset << "(sp)\n";
     sp_offset += 4;
     return sp_offset - 4;
@@ -322,6 +325,7 @@ int32_t visit(const koopa_raw_load_t &load)
     int32_t offset = rv2offset[load.src];
     std::cout << "\tlw t0, " << offset << "(sp)\n";
 
+    assert(sp_offset <= 2048);
     std::cout << "\tsw t0, " << sp_offset << "(sp)\n";
     sp_offset += 4;
     return sp_offset - 4;
@@ -344,6 +348,7 @@ void visit(const koopa_raw_store_t &store)
 
 int32_t visit(const koopa_raw_global_alloc_t &alloc)
 {
+    assert(sp_offset <= 2048);
     sp_offset += 4;
     return sp_offset - 4;
 }
