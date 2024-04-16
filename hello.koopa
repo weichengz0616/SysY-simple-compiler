@@ -1,5 +1,17 @@
 fun @main(): i32
 {
 %entry:
-	ret
+	br 1, %then_0, %end_0
+%then_0:
+	br 2, %then_1, %end_1
+%then_1:
+	br 3, %then_2, %end_2
+%then_2:
+	ret 777
+%end_2:
+	ret 888
+%end_1:
+	ret 333
+%end_0:
+	ret 666
 }

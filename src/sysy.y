@@ -34,11 +34,13 @@ using namespace std;
 
 // lexer 返回的所有 token 种类的声明
 %token INT RETURN LE GE EQ NEQ LAND LOR CONST
+%token IF ELSE
 %token <str_val> IDENT
 %token <int_val> INT_CONST
 
 // 非终结符的类型定义
 %type <ast_val> FuncDef FuncType Block Stmt
+%type <ast_val> MatchedStmt OpenStmt OtherStmt
 %type <ast_val> Exp PrimaryExp UnaryExp UnaryOp MulExp AddExp RelExp EqExp LAndExp LOrExp
 %type <ast_val> Decl ConstDecl BType ConstDef ConstInitVal BlockItem LVal ConstExp VarDecl VarDef InitVal
 %type <vec_val> BlockItemList ConstDefList VarDefList
@@ -125,45 +127,98 @@ BlockItem
 };
 
 Stmt
-: RETURN Exp ';' 
+: MatchedStmt
 {
   auto ast = new StmtAST();
-  ast->type = StmtAST::ONE_RETURN;
+  ast->type = StmtAST::MATCHED;
+  ast->matched_stmt = unique_ptr<BaseAST>($1);
+  $$ = ast;
+}
+| OpenStmt
+{
+  auto ast = new StmtAST();
+  ast->type = StmtAST::OPEN;
+  ast->open_stmt = unique_ptr<BaseAST>($1);
+  $$ = ast;
+};
+
+MatchedStmt
+: IF '(' Exp ')' MatchedStmt ELSE MatchedStmt
+{
+  auto ast = new MatchedStmtAST();
+  ast->type = MatchedStmtAST::IFELSE;
+  ast->exp = unique_ptr<BaseAST>($3);
+  ast->matched_stmt1 = unique_ptr<BaseAST>($5);
+  ast->matched_stmt2 = unique_ptr<BaseAST>($7);
+  $$ = ast;
+}
+| OtherStmt
+{
+  auto ast = new MatchedStmtAST();
+  ast->type = MatchedStmtAST::OTHER;
+  ast->other_stmt = unique_ptr<BaseAST>($1);
+  $$ = ast;
+};
+
+OpenStmt
+: IF '(' Exp ')' Stmt
+{
+  auto ast = new OpenStmtAST();
+  ast->type = OpenStmtAST::IF;
+  ast->exp = unique_ptr<BaseAST>($3);
+  ast->stmt = unique_ptr<BaseAST>($5);
+  $$ = ast;
+}
+| IF '(' Exp ')' MatchedStmt ELSE OpenStmt
+{
+  auto ast = new OpenStmtAST();
+  ast->type = OpenStmtAST::IFELSE;
+  ast->exp = unique_ptr<BaseAST>($3);
+  ast->matched_stmt = unique_ptr<BaseAST>($5);
+  ast->open_stmt = unique_ptr<BaseAST>($7);
+  $$ = ast;
+};
+
+OtherStmt
+: RETURN Exp ';' 
+{
+  auto ast = new OtherStmtAST();
+  ast->type = OtherStmtAST::ONE_RETURN;
   ast->exp = unique_ptr<BaseAST>($2);
   $$ = ast;
 }
 | LVal '=' Exp ';'
 {
-  auto ast = new StmtAST();
-  ast->type = StmtAST::LVAL;
+  auto ast = new OtherStmtAST();
+  ast->type = OtherStmtAST::LVAL;
   ast->lval = unique_ptr<BaseAST>($1);
   ast->exp = unique_ptr<BaseAST>($3);
   $$ = ast;
 }
 | Exp ';'
 {
-  auto ast = new StmtAST();
-  ast->type = StmtAST::ONE_EXP;
+  auto ast = new OtherStmtAST();
+  ast->type = OtherStmtAST::ONE_EXP;
   ast->exp = unique_ptr<BaseAST>($1);
   $$ = ast;
 }
 | ';'
 {
-  auto ast = new StmtAST();
-  ast->type = StmtAST::ZERO_EXP;
+  auto ast = new OtherStmtAST();
+  ast->type = OtherStmtAST::ZERO_EXP;
   $$ = ast;
 }
 | Block
 {
-  auto ast = new StmtAST();
-  ast->type = StmtAST::BLOCK;
+  auto ast = new OtherStmtAST();
+  ast->type = OtherStmtAST::BLOCK;
   ast->block = unique_ptr<BaseAST>($1);
   $$ = ast;
 }
 | RETURN ';'
 {
-  auto ast = new StmtAST();
-  ast->type = StmtAST::ZERO_RETURN;
+  auto ast = new OtherStmtAST();
+  ast->type = OtherStmtAST::ZERO_RETURN;
   $$ = ast;
 };
 

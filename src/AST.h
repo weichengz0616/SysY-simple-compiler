@@ -10,11 +10,19 @@
 // 全局变量
 // 改成static能链接
 // 咋不能全局??? 没道理啊
-static int reg_cnt = 0;
+static uint32_t reg_cnt = 0;
+// if-else cnt
+static uint32_t if_cnt = 0;
 
 // 处理多个return语句, 只能return一次
 // TODO: 此时只有main函数, 一个全局变量记录即可, 多个函数之后再处理.
-static bool returned_flag = false;
+// static bool returned_flag = false;
+// lv6: 考虑if-else语句
+// 跟符号表类似, 每个block的作用域内能有一个return
+// 懒得用双向链表了, 这个甚至不用往前查, 直接vector吧
+static std::vector<bool> has_returned = std::vector<bool>();
+static int rt_cur;
+
 
 // lv 4.1
 // 常量求值
@@ -63,6 +71,9 @@ public:
 	// 给各种表达式求值用
 	// 非纯的虚函数必须有定义, 否则链接报错
 	virtual int32_t getValue() const { return 0; }
+
+	// 求stmt的最后一句是不是return语句
+	// virtual bool lastReturn() const { return false; }
 };
 
 // ================================= lv1 & 2 ===========================
@@ -94,6 +105,9 @@ public:
 	{
 		st_head = new SYMBOL_TABLE();
 		st_cur = st_head;
+		has_returned.push_back(0);
+		rt_cur = 0;
+		//std::cout << "funcdef: " << has_returned.size() << " " << rt_cur << std::endl;
 		std::cout << "fun @" << ident << "(): ";
 		func_type->Dump();
 		std::cout << "{\n";
@@ -121,6 +135,7 @@ class BlockAST : public BaseAST
 {
 public:
 	std::vector<std::unique_ptr<BaseAST>> block_items;
+
 	std::string Dump() const override
 	{
 		st_cur->next = new SYMBOL_TABLE();
@@ -128,6 +143,9 @@ public:
 		st_cur->next->tag = st_cur->tag + 1;
 		st_cur = st_cur->next;
 
+		// has_returned.push_back(0);
+		// rt_cur++;
+		//std::cout << "block1: " << has_returned.size() << " " << rt_cur << std::endl;
 		
 		// stmt->Dump();
 		for (auto i = block_items.begin(); i != block_items.end(); i++)
@@ -144,11 +162,178 @@ public:
 		delete st_cur->next;
 		st_cur->next = nullptr;
 
+		// has_returned.pop_back();
+		// rt_cur--;
+		//std::cout << "block2: " << has_returned.size() << " " << rt_cur << std::endl;
+
+		return std::string();
+	}
+
+	// bool lastReturn() const override
+	// {
+	// 	if(block_items.size() > 0)
+	// 	{
+	// 		return block_items[block_items.size() - 1]->lastReturn();
+	// 	}
+	// 	return false;
+	// }
+};
+
+class StmtAST : public BaseAST
+{
+public:
+	enum TYPE
+	{
+		MATCHED,
+		OPEN
+	};
+	TYPE type;
+	std::unique_ptr<BaseAST> matched_stmt;
+	std::unique_ptr<BaseAST> open_stmt;
+
+	std::string Dump() const override
+	{
+		if(type == MATCHED)
+		{
+			matched_stmt->Dump();
+		}
+		else if(type == OPEN)
+		{
+			open_stmt->Dump();
+		}
+
 		return std::string();
 	}
 };
 
-class StmtAST : public BaseAST
+// ================================= lv6 ===========================
+class MatchedStmtAST : public BaseAST
+{
+public:
+	enum TYPE
+	{
+		IFELSE,
+		OTHER
+	};
+	TYPE type;
+	std::unique_ptr<BaseAST> exp;
+	std::unique_ptr<BaseAST> matched_stmt1;
+	std::unique_ptr<BaseAST> matched_stmt2;
+	std::unique_ptr<BaseAST> other_stmt;
+
+	std::string Dump() const override
+	{
+		if(type == IFELSE)
+		{
+			uint32_t now_if_cnt = if_cnt;
+			if_cnt++;
+			// std::cout << "================== matched ifelse dump...\n";
+			std::string exp_string = exp->Dump();
+			std::cout << "\tbr " << exp_string << ", %then_" << now_if_cnt << ", %else_" << now_if_cnt << std::endl;
+			
+			has_returned.push_back(0);
+			rt_cur++;
+			std::cout << "%then_" << now_if_cnt << ":\n";
+			matched_stmt1->Dump();
+			// 如何判断其最后一句是不是return语句
+			if(!has_returned[rt_cur])
+				std::cout << "\tjump %end_" << now_if_cnt << std::endl;
+			has_returned.pop_back();
+			rt_cur--;
+			
+			has_returned.push_back(0);
+			rt_cur++;
+			std::cout << "%else_" << now_if_cnt << ":\n";
+			matched_stmt2->Dump();
+			if(!has_returned[rt_cur])
+				std::cout << "\tjump %end_" << now_if_cnt << std::endl;
+			has_returned.pop_back();
+			rt_cur--;
+
+			std::cout << "%end_" << now_if_cnt << ":\n";
+			// if_cnt++;
+		}
+		else if(type == OTHER)
+		{
+			// std::cout << "================== matched other dump...\n";
+			other_stmt->Dump();
+		}
+
+		return std::string();
+	}
+};
+
+class OpenStmtAST : public BaseAST
+{
+public:
+	enum TYPE
+	{
+		IF,
+		IFELSE
+	};
+	TYPE type;
+	std::unique_ptr<BaseAST> exp;
+	std::unique_ptr<BaseAST> stmt;
+	std::unique_ptr<BaseAST> matched_stmt;
+	std::unique_ptr<BaseAST> open_stmt;
+
+	std::string Dump() const override
+	{
+		if(type == IF)
+		{
+			uint32_t now_if_cnt = if_cnt;
+			if_cnt++;
+
+			std::string exp_string = exp->Dump();
+			std::cout << "\tbr " << exp_string << ", %then_" << now_if_cnt << ", %end_" << now_if_cnt << std::endl;
+
+			has_returned.push_back(0);
+			rt_cur++;
+			std::cout << "%then_" << now_if_cnt << ":\n";
+			stmt->Dump();
+			if(!has_returned[rt_cur])
+				std::cout << "\tjump %end_" << now_if_cnt << std::endl;
+			has_returned.pop_back();
+			rt_cur--;
+
+			std::cout << "%end_" << now_if_cnt << ":\n";
+			// if_cnt++;
+		}
+		else if(type == IFELSE)
+		{
+			uint32_t now_if_cnt = if_cnt;
+			if_cnt++;
+
+			std::string exp_string = exp->Dump();
+			std::cout << "\tbr " << exp_string << ", %then_" << now_if_cnt << ", %else_" << now_if_cnt << std::endl;
+			
+			has_returned.push_back(0);
+			rt_cur++;
+			std::cout << "%then_" << now_if_cnt << ":\n";
+			matched_stmt->Dump();
+			if(!has_returned[rt_cur])
+				std::cout << "\tjump %end_" << now_if_cnt << std::endl;
+			has_returned.pop_back();
+			rt_cur--;
+			
+			has_returned.push_back(0);
+			rt_cur++;
+			std::cout << "%else_" << now_if_cnt << ":\n";
+			open_stmt->Dump();
+			if(!has_returned[rt_cur])
+				std::cout << "\tjump %end_" << now_if_cnt << std::endl;
+			has_returned.pop_back();
+			rt_cur--;
+			
+			std::cout << "%end_" << now_if_cnt << ":\n";
+			// if_cnt++;
+		}
+
+		return std::string();
+	}
+};
+
+class OtherStmtAST : public BaseAST
 {
 public:
 	// int number;
@@ -170,7 +355,7 @@ public:
 	{
 		if (type == ONE_RETURN)
 		{
-			returned_flag = true;
+			has_returned[rt_cur] = true;
 			// std::cout << "stmt dump...return\n";
 			std::string exp_string = exp->Dump();
 			std::cout << "\tret "
@@ -179,7 +364,7 @@ public:
 		}
 		else if(type == ZERO_RETURN)
 		{
-			returned_flag = true;
+			has_returned[rt_cur] = true;
 			std::cout << "\tret\n";
 		}
 		else if (type == LVAL)
@@ -210,6 +395,7 @@ public:
 		}
 		else if(type == BLOCK)
 		{
+			// std::cout << "================== other block dump...\n";
 			block->Dump();
 		}
 		else
@@ -218,7 +404,6 @@ public:
 		return std::string();
 	}
 };
-
 // class NumberAST : public BaseAST
 // {
 // public:
@@ -888,7 +1073,9 @@ public:
 
 	std::string Dump() const override
 	{
-		if (returned_flag)
+		assert(rt_cur < has_returned.size());
+		// std::cout << "blockitem dump..." << type << std::endl;
+		if (has_returned[rt_cur])
 			return std::string();
 		if (type == DECL)
 		{
@@ -896,10 +1083,23 @@ public:
 		}
 		else if (type == STMT)
 		{
+			// std::cout << "blockitem stmt dump...\n";
 			stmt->Dump();
 		}
 		return std::string();
 	}
+
+	// bool lastReturn() const override
+	// {
+	// 	if(type == DECL)
+	// 	{
+	// 		return decl->lastReturn();
+	// 	}
+	// 	else if(type == STMT)
+	// 	{
+	// 		return stmt->lastReturn();
+	// 	}
+	// }
 };
 
 class LValAST : public BaseAST
