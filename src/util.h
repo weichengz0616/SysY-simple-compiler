@@ -32,6 +32,8 @@ int32_t visit(const koopa_raw_binary_t &binary);
 int32_t visit(const koopa_raw_load_t &load);
 void visit(const koopa_raw_store_t &store);
 int32_t visit(const koopa_raw_global_alloc_t &alloc);
+void visit(const koopa_raw_branch_t &branch);
+void visit(const koopa_raw_jump_t &jump);
 
 void getBlocksFrameSize(int32_t& size, const koopa_raw_slice_t& bbs);
 void getInstsFrameSize(int32_t& size, const koopa_raw_slice_t& insts);
@@ -123,7 +125,7 @@ void visit(const koopa_raw_basic_block_t &bb)
 {
     // 执行一些其他的必要操作
     // ...
-    // std::cout << bb->name + 1 << ":" << std::endl;
+    std::cout << bb->name + 1 << ":" << std::endl;
     // 访问所有指令
     visit(bb->insts);
 }
@@ -161,6 +163,14 @@ void visit(const koopa_raw_value_t &value)
         break;
     case KOOPA_RVT_ALLOC:
         rv2offset[value] = visit(kind.data.global_alloc);
+        break;
+    case KOOPA_RVT_BRANCH:
+        visit(kind.data.branch);
+        std::cout << std::endl;
+        break;
+    case KOOPA_RVT_JUMP:
+        visit(kind.data.jump);
+        std::cout << std::endl;
         break;
     default:
         // 其他类型暂时遇不到
@@ -336,4 +346,25 @@ int32_t visit(const koopa_raw_global_alloc_t &alloc)
 {
     sp_offset += 4;
     return sp_offset - 4;
+}
+
+void visit(const koopa_raw_branch_t &branch)
+{
+    if(branch.cond->kind.tag == KOOPA_RVT_INTEGER)
+    {
+        std::cout << "\tli t0, " << branch.cond->kind.data.integer.value << std::endl;
+    }
+    else
+    {
+        assert(rv2offset.find(branch.cond) != rv2offset.end());
+        int32_t offset = rv2offset[branch.cond];
+        std::cout << "\tlw t0, " << offset << "(sp)\n";
+    }
+    std::cout << "\tbnez t0, " << branch.true_bb->name + 1 << std::endl;
+    std::cout << "\tj " << branch.false_bb->name + 1 << std::endl;
+}
+
+void visit(const koopa_raw_jump_t &jump)
+{
+    std::cout << "\tj " << jump.target->name + 1 << std::endl;
 }

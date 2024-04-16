@@ -147,7 +147,10 @@ int main()
     int x = 2;
   }
   else
-    //int x = 3;
+  {
+    int x = 3;
+  }
+    
 
   return 999;
 }
