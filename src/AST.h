@@ -61,6 +61,7 @@ struct SYMBOL_TABLE
 };
 static SYMBOL_TABLE *st_head;
 static SYMBOL_TABLE *st_cur;
+static int st_tag_cnt = 0;
 
 // 所有 AST 的基类
 class BaseAST
@@ -140,7 +141,8 @@ public:
 	{
 		st_cur->next = new SYMBOL_TABLE();
 		st_cur->next->prev = st_cur;
-		st_cur->next->tag = st_cur->tag + 1;
+		st_cur->next->tag = st_tag_cnt + 1;
+		st_tag_cnt++;
 		st_cur = st_cur->next;
 
 		// has_returned.push_back(0);
@@ -235,8 +237,8 @@ public:
 			rt_cur++;
 			std::cout << "%then_" << now_if_cnt << ":\n";
 			matched_stmt1->Dump();
-			// 如何判断其最后一句是不是return语句
-			if(!has_returned[rt_cur])
+			bool has_returned1 = has_returned[rt_cur];
+			if(!has_returned1)
 				std::cout << "\tjump %end_" << now_if_cnt << std::endl;
 			has_returned.pop_back();
 			rt_cur--;
@@ -245,12 +247,20 @@ public:
 			rt_cur++;
 			std::cout << "%else_" << now_if_cnt << ":\n";
 			matched_stmt2->Dump();
-			if(!has_returned[rt_cur])
+			bool has_returned2 = has_returned[rt_cur];
+			if(!has_returned2)
 				std::cout << "\tjump %end_" << now_if_cnt << std::endl;
 			has_returned.pop_back();
 			rt_cur--;
 
-			std::cout << "%end_" << now_if_cnt << ":\n";
+			// fix bug lv6
+			// 两个分支已经都有return了, 就不要后续stmt了
+			if(has_returned1 && has_returned2)
+			{
+				has_returned[rt_cur] = true;
+			}
+			else
+				std::cout << "%end_" << now_if_cnt << ":\n";
 			// if_cnt++;
 		}
 		else if(type == OTHER)

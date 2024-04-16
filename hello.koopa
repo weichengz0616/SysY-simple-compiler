@@ -1,17 +1,15 @@
 fun @main(): i32
 {
 %entry:
-	br 1, %then_0, %end_0
+	br 1, %then_0, %else_0
 %then_0:
-	br 2, %then_1, %end_1
-%then_1:
-	br 3, %then_2, %end_2
-%then_2:
-	ret 777
-%end_2:
-	ret 888
-%end_1:
-	ret 333
+	@x_2= alloc i32
+	store 2 , @x_2
+	jump %end_0
+%else_0:
+	@x_3= alloc i32
+	store 3 , @x_3
+	jump %end_0
 %end_0:
-	ret 666
+	ret 999
 }

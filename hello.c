@@ -112,22 +112,42 @@ int main()
   //   }
   // }
 
+  // if(1)
+  // {
+  //   if(2)
+  //   {
+  //     if(3)
+  //     {
+  //       return 777;
+  //     }
+  //     return 888;
+  //   }
+  //   else
+  //   {
+  //     int x = 111;
+  //     return x;
+  //   }
+
+  //   int y = 222;
+  //   return 999;
+  // }
+  // return 666;
+  // int x = 1;
+  // return x;
+
+  // if(1)
+  //   return 1;
+  // else
+  //   return 2;
+  // int x = 213 + 213 - 231;
+  // return x;
+
   if(1)
   {
-    if(2)
-    {
-      if(3)
-      {
-        return 777;
-      }
-      return 888;
-    }
-    {
-      return 333;
-    }
-    return 999;
+    int x = 2;
   }
-  return 666;
-  int x = 1;
-  return x;
+  else
+    //int x = 3;
+
+  return 999;
 }
