@@ -17,7 +17,7 @@
 // 一条指令的结果 <=> 一个栈上的偏移量
 std::map<koopa_raw_value_t, int32_t> rv2offset;
 int32_t sp_offset = 0;
-int32_t stack_frame_size = 0;// (byte)
+int32_t stack_frame_size = 0; // (byte)
 
 // 函数声明略
 // ...
@@ -35,8 +35,8 @@ int32_t visit(const koopa_raw_global_alloc_t &alloc);
 void visit(const koopa_raw_branch_t &branch);
 void visit(const koopa_raw_jump_t &jump);
 
-void getBlocksFrameSize(int32_t& size, const koopa_raw_slice_t& bbs);
-void getInstsFrameSize(int32_t& size, const koopa_raw_slice_t& insts);
+void getBlocksFrameSize(int32_t &size, const koopa_raw_slice_t &bbs);
+void getInstsFrameSize(int32_t &size, const koopa_raw_slice_t &insts);
 
 // 访问 raw program
 void visit(const koopa_raw_program_t &program)
@@ -82,9 +82,9 @@ void visit(const koopa_raw_function_t &func)
 {
     // 计算栈帧大小
     // 遍历函数的所有指令
-    
+
     getBlocksFrameSize(stack_frame_size, func->bbs);
-    stack_frame_size = ((stack_frame_size - 1) / 16 + 1) * 16;// 对齐16bytes
+    stack_frame_size = ((stack_frame_size - 1) / 16 + 1) * 16; // 对齐16bytes
 
     // 执行一些其他的必要操作
     // ...
@@ -99,7 +99,7 @@ void visit(const koopa_raw_function_t &func)
     visit(func->bbs);
 }
 
-void getBlocksFrameSize(int32_t& size, const koopa_raw_slice_t& bbs)
+void getBlocksFrameSize(int32_t &size, const koopa_raw_slice_t &bbs)
 {
     assert(bbs.kind == KOOPA_RSIK_BASIC_BLOCK);
     for (size_t i = 0; i < bbs.len; ++i)
@@ -109,13 +109,13 @@ void getBlocksFrameSize(int32_t& size, const koopa_raw_slice_t& bbs)
     }
 }
 
-void getInstsFrameSize(int32_t& size, const koopa_raw_slice_t& insts)
+void getInstsFrameSize(int32_t &size, const koopa_raw_slice_t &insts)
 {
     assert(insts.kind == KOOPA_RSIK_VALUE);
     for (size_t i = 0; i < insts.len; ++i)
     {
         auto ptr = reinterpret_cast<koopa_raw_value_t>(insts.buffer[i]);
-        if(ptr->ty->tag == KOOPA_RTT_INT32)
+        if (ptr->ty->tag == KOOPA_RTT_INT32)
             size += 4; // 4 bytes
     }
 }
@@ -149,14 +149,12 @@ void visit(const koopa_raw_value_t &value)
         break;
     case KOOPA_RVT_BINARY:
         // 访问 binary 指令
-        //rv2reg[value] = visit(kind.data.binary);
+        // rv2reg[value] = visit(kind.data.binary);
         rv2offset[value] = visit(kind.data.binary);
-        assert(rv2offset[value] <= 2048);
         std::cout << std::endl;
         break;
     case KOOPA_RVT_LOAD:
         rv2offset[value] = visit(kind.data.load);
-        assert(rv2offset[value] <= 2048);
         std::cout << std::endl;
         break;
     case KOOPA_RVT_STORE:
@@ -165,7 +163,6 @@ void visit(const koopa_raw_value_t &value)
         break;
     case KOOPA_RVT_ALLOC:
         rv2offset[value] = visit(kind.data.global_alloc);
-        assert(rv2offset[value] <= 2048);
         break;
     case KOOPA_RVT_BRANCH:
         visit(kind.data.branch);
@@ -194,13 +191,19 @@ void visit(const koopa_raw_return_t &ret)
         }
         else
         {
-            //assert(ret_value->kind.tag == KOOPA_RVT_BINARY);
+            // assert(ret_value->kind.tag == KOOPA_RVT_BINARY);
             int32_t offset = rv2offset[ret_value];
-            std::cout << "\tlw a0, " << offset << "(sp)\n";
+            if (offset <= 2048)
+                std::cout << "\tlw a0, " << offset << "(sp)\n";
+            else
+            {
+                std::cout << "\tli, t0, " << sp_offset << std::endl;
+                std::cout << "\tadd t0, t0, sp\n";
+                std::cout << "\tlw a0, 0(t0)\n";
+            }
         }
 
         // std::cout << "\tmv a0, " << rv2reg[ret_value] << std::endl;
-        
     }
 
     std::cout << "\tli t0, " << stack_frame_size << std::endl;
@@ -237,7 +240,14 @@ int32_t visit(const koopa_raw_binary_t &binary)
     {
         // lhs_reg = rv2reg[binary.lhs];
         int32_t offset = rv2offset[binary.lhs];
-        std::cout << "\tlw t0, " << offset << "(sp)\n";
+        if(offset <= 2048)
+            std::cout << "\tlw t0, " << offset << "(sp)\n";
+        else
+        {
+            std::cout << "\tli, t0, " << sp_offset << std::endl;
+            std::cout << "\tadd t0, t0, sp\n";
+            std::cout << "\tlw t0, 0(t0)\n";
+        }
         lhs_reg = "t0";
     }
     if (binary.rhs->kind.tag == KOOPA_RVT_INTEGER)
@@ -251,11 +261,18 @@ int32_t visit(const koopa_raw_binary_t &binary)
     {
         // rhs_reg = rv2reg[binary.rhs];
         int32_t offset = rv2offset[binary.rhs];
-        std::cout << "\tlw t1, " << offset << "(sp)\n";
+        if(offset <= 2048)
+            std::cout << "\tlw t1, " << offset << "(sp)\n";
+        else
+        {
+            std::cout << "\tli, t0, " << sp_offset << std::endl;
+            std::cout << "\tadd t0, t0, sp\n";
+            std::cout << "\tlw t1, 0(t0)\n";
+        }
         rhs_reg = "t1";
     }
     // reg = regs[reg_now % 14];
-    //reg = rhs_reg;
+    // reg = rhs_reg;
     reg = "t0";
 
     switch (binary.op)
@@ -312,8 +329,14 @@ int32_t visit(const koopa_raw_binary_t &binary)
     }
 
     // reg_now++;
-    assert(sp_offset <= 2048);
-    std::cout << "\tsw t0, " << sp_offset << "(sp)\n";
+    if (sp_offset <= 2048)
+        std::cout << "\tsw t0, " << sp_offset << "(sp)\n";
+    else
+    {
+        std::cout << "\tli, t1, " << sp_offset << std::endl;
+        std::cout << "\tadd t1, t1, sp\n";
+        std::cout << "\tsw t0, 0(t1)\n";
+    }
     sp_offset += 4;
     return sp_offset - 4;
 }
@@ -323,39 +346,74 @@ int32_t visit(const koopa_raw_load_t &load)
     // 这里的src我猜应该是指向首条alloc指令??
     assert(rv2offset.find(load.src) != rv2offset.end());
     int32_t offset = rv2offset[load.src];
-    std::cout << "\tlw t0, " << offset << "(sp)\n";
+    if(offset <= 2048)
+        std::cout << "\tlw t0, " << offset << "(sp)\n";
+    else
+    {
+        std::cout << "\tli, t0, " << sp_offset << std::endl;
+        std::cout << "\tadd t0, t0, sp\n";
+        std::cout << "\tlw t0, 0(t0)\n";
+    }
 
-    assert(sp_offset <= 2048);
-    std::cout << "\tsw t0, " << sp_offset << "(sp)\n";
+    if (sp_offset <= 2048)
+        std::cout << "\tsw t0, " << sp_offset << "(sp)\n";
+    else
+    {
+        std::cout << "\tli, t1, " << sp_offset << std::endl;
+        std::cout << "\tadd t1, t1, sp\n";
+        std::cout << "\tsw t0, 0(t1)\n";
+    }
     sp_offset += 4;
     return sp_offset - 4;
 }
 
 void visit(const koopa_raw_store_t &store)
 {
-    if(store.value->kind.tag == KOOPA_RVT_INTEGER)
+    if (store.value->kind.tag == KOOPA_RVT_INTEGER)
     {
         int32_t offset_dest = rv2offset[store.dest];
         std::cout << "\tli t0, " << store.value->kind.data.integer.value << std::endl;
-        std::cout << "\tsw t0, " << offset_dest << "(sp)\n";
+        if (offset_dest <= 2048)
+            std::cout << "\tsw t0, " << offset_dest << "(sp)\n";
+        else
+        {
+            std::cout << "\tli, t1, " << sp_offset << std::endl;
+            std::cout << "\tadd t1, t1, sp\n";
+            std::cout << "\tsw t0, 0(t1)\n";
+        }
         return;
     }
     int32_t offset_value = rv2offset[store.value];
     int32_t offset_dest = rv2offset[store.dest];
-    std::cout << "\tlw t0, " << offset_value << "(sp)\n";
-    std::cout << "\tsw t0, " << offset_dest << "(sp)\n";
+    if (offset_value <= 2048)
+        std::cout << "\tlw t0, " << offset_value << "(sp)\n";
+    else
+    {
+        std::cout << "\tli, t0, " << sp_offset << std::endl;
+        std::cout << "\tadd t0, t0, sp\n";
+        std::cout << "\tlw t0, 0(t0)\n";
+    }
+
+    if (offset_dest <= 2048)
+        std::cout << "\tsw t0, " << offset_dest << "(sp)\n";
+    else
+    {
+        std::cout << "\tli, t1, " << sp_offset << std::endl;
+        std::cout << "\tadd t1, t1, sp\n";
+        std::cout << "\tsw t0, 0(t1)\n";
+    }
 }
 
 int32_t visit(const koopa_raw_global_alloc_t &alloc)
 {
-    assert(sp_offset <= 2048);
+    // assert(sp_offset <= 2048);
     sp_offset += 4;
     return sp_offset - 4;
 }
 
 void visit(const koopa_raw_branch_t &branch)
 {
-    if(branch.cond->kind.tag == KOOPA_RVT_INTEGER)
+    if (branch.cond->kind.tag == KOOPA_RVT_INTEGER)
     {
         std::cout << "\tli t0, " << branch.cond->kind.data.integer.value << std::endl;
     }
@@ -363,7 +421,14 @@ void visit(const koopa_raw_branch_t &branch)
     {
         assert(rv2offset.find(branch.cond) != rv2offset.end());
         int32_t offset = rv2offset[branch.cond];
-        std::cout << "\tlw t0, " << offset << "(sp)\n";
+        if (offset <= 2048)
+            std::cout << "\tlw t0, " << offset << "(sp)\n";
+        else
+        {
+            std::cout << "\tli, t0, " << sp_offset << std::endl;
+            std::cout << "\tadd t0, t0, sp\n";
+            std::cout << "\tlw t0, 0(t0)\n";
+        }
     }
     std::cout << "\tbnez t0, " << branch.true_bb->name + 1 << std::endl;
     std::cout << "\tj " << branch.false_bb->name + 1 << std::endl;
