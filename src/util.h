@@ -193,7 +193,7 @@ void visit(const koopa_raw_return_t &ret)
         {
             // assert(ret_value->kind.tag == KOOPA_RVT_BINARY);
             int32_t offset = rv2offset[ret_value];
-            if (offset <= 2048)
+            if (offset < 2048)
                 std::cout << "\tlw a0, " << offset << "(sp)\n";
             else
             {
@@ -240,7 +240,7 @@ int32_t visit(const koopa_raw_binary_t &binary)
     {
         // lhs_reg = rv2reg[binary.lhs];
         int32_t offset = rv2offset[binary.lhs];
-        if(offset <= 2048)
+        if(offset < 2048)
             std::cout << "\tlw t0, " << offset << "(sp)\n";
         else
         {
@@ -261,7 +261,7 @@ int32_t visit(const koopa_raw_binary_t &binary)
     {
         // rhs_reg = rv2reg[binary.rhs];
         int32_t offset = rv2offset[binary.rhs];
-        if(offset <= 2048)
+        if(offset < 2048)
             std::cout << "\tlw t1, " << offset << "(sp)\n";
         else
         {
@@ -329,7 +329,7 @@ int32_t visit(const koopa_raw_binary_t &binary)
     }
 
     // reg_now++;
-    if (sp_offset <= 2048)
+    if (sp_offset < 2048)
         std::cout << "\tsw t0, " << sp_offset << "(sp)\n";
     else
     {
@@ -346,7 +346,7 @@ int32_t visit(const koopa_raw_load_t &load)
     // 这里的src我猜应该是指向首条alloc指令??
     assert(rv2offset.find(load.src) != rv2offset.end());
     int32_t offset = rv2offset[load.src];
-    if(offset <= 2048)
+    if(offset < 2048)
         std::cout << "\tlw t0, " << offset << "(sp)\n";
     else
     {
@@ -355,7 +355,7 @@ int32_t visit(const koopa_raw_load_t &load)
         std::cout << "\tlw t0, 0(t0)\n";
     }
 
-    if (sp_offset <= 2048)
+    if (sp_offset < 2048)
         std::cout << "\tsw t0, " << sp_offset << "(sp)\n";
     else
     {
@@ -373,7 +373,7 @@ void visit(const koopa_raw_store_t &store)
     {
         int32_t offset_dest = rv2offset[store.dest];
         std::cout << "\tli t0, " << store.value->kind.data.integer.value << std::endl;
-        if (offset_dest <= 2048)
+        if (offset_dest < 2048)
             std::cout << "\tsw t0, " << offset_dest << "(sp)\n";
         else
         {
@@ -385,7 +385,7 @@ void visit(const koopa_raw_store_t &store)
     }
     int32_t offset_value = rv2offset[store.value];
     int32_t offset_dest = rv2offset[store.dest];
-    if (offset_value <= 2048)
+    if (offset_value < 2048)
         std::cout << "\tlw t0, " << offset_value << "(sp)\n";
     else
     {
@@ -394,7 +394,7 @@ void visit(const koopa_raw_store_t &store)
         std::cout << "\tlw t0, 0(t0)\n";
     }
 
-    if (offset_dest <= 2048)
+    if (offset_dest < 2048)
         std::cout << "\tsw t0, " << offset_dest << "(sp)\n";
     else
     {
@@ -421,7 +421,7 @@ void visit(const koopa_raw_branch_t &branch)
     {
         assert(rv2offset.find(branch.cond) != rv2offset.end());
         int32_t offset = rv2offset[branch.cond];
-        if (offset <= 2048)
+        if (offset < 2048)
             std::cout << "\tlw t0, " << offset << "(sp)\n";
         else
         {
