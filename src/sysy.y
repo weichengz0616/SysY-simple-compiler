@@ -128,7 +128,7 @@ Stmt
 : RETURN Exp ';' 
 {
   auto ast = new StmtAST();
-  ast->type = StmtAST::RETURN;
+  ast->type = StmtAST::ONE_RETURN;
   ast->exp = unique_ptr<BaseAST>($2);
   $$ = ast;
 }
@@ -138,6 +138,32 @@ Stmt
   ast->type = StmtAST::LVAL;
   ast->lval = unique_ptr<BaseAST>($1);
   ast->exp = unique_ptr<BaseAST>($3);
+  $$ = ast;
+}
+| Exp ';'
+{
+  auto ast = new StmtAST();
+  ast->type = StmtAST::ONE_EXP;
+  ast->exp = unique_ptr<BaseAST>($1);
+  $$ = ast;
+}
+| ';'
+{
+  auto ast = new StmtAST();
+  ast->type = StmtAST::ZERO_EXP;
+  $$ = ast;
+}
+| Block
+{
+  auto ast = new StmtAST();
+  ast->type = StmtAST::BLOCK;
+  ast->block = unique_ptr<BaseAST>($1);
+  $$ = ast;
+}
+| RETURN ';'
+{
+  auto ast = new StmtAST();
+  ast->type = StmtAST::ZERO_RETURN;
   $$ = ast;
 };
 

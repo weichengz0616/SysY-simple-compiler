@@ -32,7 +32,27 @@ struct VALUE
 	VALUE_TYPE tag;
 	int32_t value;
 };
-static std::unordered_map<std::string, VALUE> symbol_table;
+// static std::unordered_map<std::string, VALUE> symbol_table;
+
+// lv5
+// 作用域: 新进入一个block, 就新建一个符号表接在链表后面
+struct SYMBOL_TABLE
+{
+	std::unordered_map<std::string, VALUE> table;
+	SYMBOL_TABLE *prev;
+	SYMBOL_TABLE *next;
+	int tag;
+
+	SYMBOL_TABLE()
+	{
+		prev = nullptr;
+		next = nullptr;
+		tag = 0;
+		table = std::unordered_map<std::string, VALUE>();
+	}
+};
+static SYMBOL_TABLE *st_head;
+static SYMBOL_TABLE *st_cur;
 
 // 所有 AST 的基类
 class BaseAST
@@ -55,7 +75,7 @@ public:
 
 	std::string Dump() const override
 	{
-		//std::cout << "compunit dump...\n";
+		// std::cout << "compunit dump...\n";
 		func_def->Dump();
 
 		return std::string();
@@ -72,10 +92,16 @@ public:
 
 	std::string Dump() const override
 	{
+		st_head = new SYMBOL_TABLE();
+		st_cur = st_head;
 		std::cout << "fun @" << ident << "(): ";
 		func_type->Dump();
+		std::cout << "{\n";
+		std::cout << "%entry:\n";
 		block->Dump();
+		std::cout << "}\n";
 
+		delete st_head;
 		return std::string();
 	}
 };
@@ -97,18 +123,26 @@ public:
 	std::vector<std::unique_ptr<BaseAST>> block_items;
 	std::string Dump() const override
 	{
-		std::cout << "{\n";
-		std::cout << "%entry:\n";
+		st_cur->next = new SYMBOL_TABLE();
+		st_cur->next->prev = st_cur;
+		st_cur->next->tag = st_cur->tag + 1;
+		st_cur = st_cur->next;
+
+		
 		// stmt->Dump();
 		for (auto i = block_items.begin(); i != block_items.end(); i++)
 		{
-			//std::cout << "blockitem dump...\n";
-			// if((*i))
-			// 	std::cout << "nullptr...\n";
-			
+			// std::cout << "blockitem dump...\n";
+			//  if((*i))
+			//  	std::cout << "nullptr...\n";
+
 			(*i)->Dump();
 		}
-		std::cout << "}\n";
+		
+
+		st_cur = st_cur->prev;
+		delete st_cur->next;
+		st_cur->next = nullptr;
 
 		return std::string();
 	}
@@ -121,34 +155,65 @@ public:
 	enum TYPE
 	{
 		LVAL,
-		RETURN
+		ZERO_RETURN,
+		ONE_RETURN,
+		ZERO_EXP,
+		ONE_EXP,
+		BLOCK
 	};
 	TYPE type;
 	std::unique_ptr<BaseAST> lval;
 	std::unique_ptr<BaseAST> exp;
+	std::unique_ptr<BaseAST> block;
 
 	std::string Dump() const override
 	{
-		if (type == RETURN)
+		if (type == ONE_RETURN)
 		{
 			returned_flag = true;
-			//std::cout << "stmt dump...return\n";
+			// std::cout << "stmt dump...return\n";
 			std::string exp_string = exp->Dump();
 			std::cout << "\tret "
 					  << exp_string; // 返回当前最新的reg
 			std::cout << std::endl;
 		}
-		else if(type == LVAL)
+		else if(type == ZERO_RETURN)
 		{
-			//std::cout << "stmt dump...lval\n";
+			returned_flag = true;
+			std::cout << "\tret\n";
+		}
+		else if (type == LVAL)
+		{
+			// std::cout << "stmt dump...lval\n";
 			std::string exp_string = exp->Dump();
 			// 此时lval必定是变量, 否则是语义错误
 			std::string lval_string = lval->Dump();
 			int32_t new_value = exp->getValue();
+
+			auto st_tmp = st_cur;
+			while (st_tmp->table.find(lval_string) == st_tmp->table.end())
+			{
+				st_tmp = st_tmp->prev;
+			}
+			auto &symbol_table = st_tmp->table;
 			assert(symbol_table.find(lval_string) != symbol_table.end());
 			symbol_table[lval_string].value = new_value;
-			std::cout << "\tstore " << exp_string << " , @" << lval_string << std::endl;
+			std::cout << "\tstore " << exp_string << " , @" << lval_string << "_" << st_tmp->tag << std::endl;
 		}
+		else if(type == ZERO_EXP)
+		{
+			// 啥也不干
+		}
+		else if(type == ONE_EXP)
+		{
+			exp->Dump();
+		}
+		else if(type == BLOCK)
+		{
+			block->Dump();
+		}
+		else
+			std::cout << "stmt type error...\n";
 
 		return std::string();
 	}
@@ -200,11 +265,17 @@ public:
 		{
 			// std::cout << " " << number << " ";
 			std::string ident = lval->Dump();
-			if(symbol_table[ident].tag == VALUE::CONST)
+			auto st_tmp = st_cur;
+			while (st_tmp->table.find(ident) == st_tmp->table.end())
+			{
+				st_tmp = st_tmp->prev;
+			}
+			auto &symbol_table = st_tmp->table;
+			if (symbol_table[ident].tag == VALUE::CONST)
 				return std::to_string(lval->getValue());
 			else
 			{
-				std::cout << "\t%" << reg_cnt << " = load @" << ident << std::endl;
+				std::cout << "\t%" << reg_cnt << " = load @" << ident << "_" << st_tmp->tag << std::endl;
 				reg_cnt++;
 				return "%" + std::to_string(reg_cnt - 1);
 			}
@@ -731,9 +802,9 @@ public:
 	std::string Dump() const override
 	{
 		// 注意分类!!! 之前忘了, 导致空指针, 则段错误
-		if(type == CONST)
+		if (type == CONST)
 			const_decl->Dump();
-		else if(type == VAR)
+		else if (type == VAR)
 			var_decl->Dump();
 		return std::string();
 	}
@@ -782,6 +853,7 @@ public:
 		VALUE tmp;
 		tmp.tag = VALUE::CONST;
 		tmp.value = const_init_val->getValue();
+		auto& symbol_table = st_cur->table;
 		symbol_table[ident] = tmp;
 	}
 };
@@ -816,8 +888,8 @@ public:
 
 	std::string Dump() const override
 	{
-		if(returned_flag)
-				return std::string();
+		if (returned_flag)
+			return std::string();
 		if (type == DECL)
 		{
 			decl->Dump();
@@ -839,7 +911,7 @@ public:
 	{
 		// 注意这里常量才会直接求值
 		// 变量应该翻译成IR
-		assert(symbol_table.find(ident) != symbol_table.end());
+		// assert(symbol_table.find(ident) != symbol_table.end());
 		// if(symbol_table[ident].tag == VALUE::CONST)
 		// 	return std::to_string(getValue());
 		// else
@@ -850,6 +922,12 @@ public:
 
 	int32_t getValue() const override
 	{
+		auto st_tmp = st_cur;
+		while (st_tmp->table.find(ident) == st_tmp->table.end())
+		{
+			st_tmp = st_tmp->prev;
+		}
+		auto &symbol_table = st_tmp->table;
 		assert(symbol_table.find(ident) != symbol_table.end());
 		return symbol_table[ident].value;
 	}
@@ -879,7 +957,7 @@ public:
 
 	std::string Dump() const override
 	{
-		//std::cout << "var decl dump...\n";
+		// std::cout << "var decl dump...\n";
 		for (auto i = var_defs.begin(); i != var_defs.end(); i++)
 		{
 			(*i)->Dump();
@@ -906,21 +984,23 @@ public:
 		{
 			VALUE v;
 			v.tag = VALUE::VAR;
+			auto& symbol_table = st_cur->table;
 			symbol_table[ident] = v;
 
-			std::cout << "\t@" << ident << "= alloc i32\n";
+			std::cout << "\t@" << ident << "_" << st_cur->tag << "= alloc i32\n";
 		}
 		else if (type == INIT)
 		{
 			VALUE v;
 			v.tag = VALUE::VAR;
 			v.value = init_val->getValue();
+			auto& symbol_table = st_cur->table;
 			symbol_table[ident] = v;
 
 			// 初始化变量的时候, 若右边表达式含变量, 也是直接像常量一样求值吗, 还是当作表达式?
 			// 这里先按常量求值处理
-			std::cout << "\t@" << ident << "= alloc i32\n";
-			std::cout << "\tstore " << v.value << " , @" << ident << std::endl;
+			std::cout << "\t@" << ident << "_" << st_cur->tag << "= alloc i32\n";
+			std::cout << "\tstore " << v.value << " , @" << ident << "_" << st_cur->tag << std::endl;
 		}
 
 		return std::string();
@@ -938,9 +1018,9 @@ public:
 	}
 
 	int32_t getValue() const override
-	{ 
-		return exp->getValue(); 
-	} 
+	{
+		return exp->getValue();
+	}
 };
 
 // ...

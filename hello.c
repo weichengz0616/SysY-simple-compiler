@@ -30,28 +30,41 @@
 
 
 //lv 4
-int main() {
-  // const int x = 1 + 1;
-  // const int y = -61 + (2 + 3) * (23 + 327);
-  // return y;
+// int main() {
+//   // const int x = 1 + 1;
+//   // const int y = -61 + (2 + 3) * (23 + 327);
+//   // return y;
 
-  // const int y = 21783 + (213 - 12) * 21;
-  // int x = y + 9;
-  // int x = 11;
-  // x = x + 111;
-  // int a = x + 10 + 21 -232;
-  // //a = 1;
+//   // const int y = 21783 + (213 - 12) * 21;
+//   // int x = y + 9;
+//   // int x = 11;
+//   // x = x + 111;
+//   // int a = x + 10 + 21 -232;
+//   // //a = 1;
+//   // return a;
+
+//   // int x = 10;
+//   // x = x + 1;
+//   // return x;
+//   // return x + 111;
+
+//   return 1;
+//   int x = 1;
+//   return 2;
+//   return 3;
+//   return 4;
+// }
+
+
+//lv 5
+int main() {
+  // int a = 1;
+  // {
+  //   a = 2;
+  //   int a = 3;
+  // }
   // return a;
 
-  // int x = 10;
-  // x = x + 1;
-  // return x;
-  // return x + 111;
-
-  return 1;
-  int x = 1;
-  return 2;
-  return 3;
-  return 4;
+  return;
 }
 
