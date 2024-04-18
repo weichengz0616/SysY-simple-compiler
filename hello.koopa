@@ -9,5 +9,25 @@ fun @main(): i32
 	%1 = lt %0, 777
 	br %1, %while_body_0, %while_end_0
 %while_body_0:
-	ret 1
+	@w_2= alloc i32
+	store 555 , @w_2
+	br 111, %then_1, %end_1
+%then_1:
+	jump %while_entry_0
+%continue_2:
+	jump %end_1
+%end_1:
+	@y_2= alloc i32
+	store 222 , @y_2
+	br 333, %then_2, %end_2
+%then_2:
+	jump %while_end_0
+%break_3:
+	jump %end_2
+%end_2:
+	@z_2= alloc i32
+	store 444 , @z_2
+	jump %while_entry_0
+%while_end_0:
+	ret 0
 }

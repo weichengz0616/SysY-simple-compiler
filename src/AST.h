@@ -123,6 +123,8 @@ public:
 		std::cout << "{\n";
 		std::cout << "%entry:\n";
 		block->Dump();
+		if(!has_returned[rt_cur])
+			std::cout << "\tret 0\n";
 		std::cout << "}\n";
 
 		delete st_head;
@@ -421,7 +423,8 @@ public:
 		else if(type == ZERO_RETURN)
 		{
 			has_returned[rt_cur] = true;
-			std::cout << "\tret\n";
+			// 注意这里只能处理int函数
+			std::cout << "\tret 0\n";
 		}
 		else if (type == LVAL)
 		{

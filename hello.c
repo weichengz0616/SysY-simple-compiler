@@ -191,8 +191,14 @@ int main() {
   int x = 999;
   while (x < 777)
   {
-    return 1;
+    int w = 555;
+    if(111)
+      continue;
+    int y = 222;
+    if(333)
+      break;
+    int z = 444;
   }
-  return 0;
+  //return 0;
 }
 
