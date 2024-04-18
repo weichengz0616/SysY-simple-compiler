@@ -2,16 +2,12 @@ fun @main(): i32
 {
 %entry:
 	@x_1= alloc i32
-	store 1 , @x_1
+	store 999 , @x_1
 	jump %while_entry_0
 %while_entry_0:
-	br 1, %while_body_0, %while_end_0
-%while_body_0:
 	%0 = load @x_1
-	%1 = add %0, 1
-	store %1 , @x_1
-	jump %while_entry_0
-%while_end_0:
-	%2 = load @x_1
-	ret %2
+	%1 = lt %0, 777
+	br %1, %while_body_0, %while_end_0
+%while_body_0:
+	ret 1
 }

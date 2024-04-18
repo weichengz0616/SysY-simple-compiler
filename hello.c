@@ -188,11 +188,11 @@ int main() {
   // }
   // return 0;
 
-  int x = 1;
-  while (1)
+  int x = 999;
+  while (x < 777)
   {
-    x = x + 1;
+    return 1;
   }
-  return x;
+  return 0;
 }
 

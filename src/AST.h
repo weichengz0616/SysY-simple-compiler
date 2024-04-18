@@ -304,11 +304,11 @@ public:
 			
 			while_entry.pop();
 			while_end.pop();
-			if(has_returned1)
-			{
-				has_returned[rt_cur] = true;
-			}
-			else
+			// if(has_returned1)
+			// {
+			// 	has_returned[rt_cur] = true;
+			// }
+			// else
 				std::cout << "%while_end_" << now_if_cnt << ":\n";
 		}
 
