@@ -6,6 +6,7 @@
 #include <string>
 #include <vector>
 #include <unordered_map>
+#include <stack>
 
 // 全局变量
 // 改成static能链接
@@ -62,6 +63,14 @@ struct SYMBOL_TABLE
 static SYMBOL_TABLE *st_head;
 static SYMBOL_TABLE *st_cur;
 static int st_tag_cnt = 0;
+
+
+// lv7
+// break/continue语句需要知道当前while循环的entry和end在哪里
+// 这里用栈实现, 栈顶即当前
+static std::stack<std::string> while_entry;
+static std::stack<std::string> while_end;
+
 
 // 所有 AST 的基类
 class BaseAST
@@ -215,7 +224,8 @@ public:
 	enum TYPE
 	{
 		IFELSE,
-		OTHER
+		OTHER,
+		WHILE
 	};
 	TYPE type;
 	std::unique_ptr<BaseAST> exp;
@@ -225,6 +235,7 @@ public:
 
 	std::string Dump() const override
 	{
+		//std::cout << "match dumping... " << type << std::endl;
 		if(type == IFELSE)
 		{
 			uint32_t now_if_cnt = if_cnt;
@@ -268,6 +279,38 @@ public:
 			// std::cout << "================== matched other dump...\n";
 			other_stmt->Dump();
 		}
+		else if(type == WHILE)
+		{
+			uint32_t now_if_cnt = if_cnt;
+			if_cnt++;
+			while_entry.push("%while_entry_" + std::to_string(now_if_cnt));
+			while_end.push("%while_end_" + std::to_string(now_if_cnt));
+
+			std::cout << "\tjump %while_entry_" << now_if_cnt << std::endl;
+			std::cout << "%while_entry_" << now_if_cnt << ":" << std::endl;
+
+			std::string exp_string = exp->Dump();
+			std::cout << "\tbr " << exp_string << ", %while_body_" << now_if_cnt << ", %while_end_" << now_if_cnt << std::endl;
+
+			std::cout << "%while_body_" << now_if_cnt << ":" << std::endl;
+			has_returned.push_back(0);
+			rt_cur++;
+			matched_stmt1->Dump();
+			bool has_returned1 = has_returned[rt_cur];
+			if(!has_returned1)
+				std::cout << "\tjump %while_entry_" << now_if_cnt << std::endl;
+			has_returned.pop_back();
+			rt_cur--;
+			
+			while_entry.pop();
+			while_end.pop();
+			if(has_returned1)
+			{
+				has_returned[rt_cur] = true;
+			}
+			else
+				std::cout << "%while_end_" << now_if_cnt << ":\n";
+		}
 
 		return std::string();
 	}
@@ -289,6 +332,7 @@ public:
 
 	std::string Dump() const override
 	{
+		//std::cout << "open dumping... " << type << std::endl;
 		if(type == IF)
 		{
 			uint32_t now_if_cnt = if_cnt;
@@ -354,7 +398,9 @@ public:
 		ONE_RETURN,
 		ZERO_EXP,
 		ONE_EXP,
-		BLOCK
+		BLOCK,
+		BREAK,
+		CONTINUE
 	};
 	TYPE type;
 	std::unique_ptr<BaseAST> lval;
@@ -407,6 +453,16 @@ public:
 		{
 			// std::cout << "================== other block dump...\n";
 			block->Dump();
+		}
+		else if(type == BREAK)
+		{
+			std::cout << "\tjump " << while_end.top() << std::endl;
+			std::cout << "%break_" << if_cnt << ":" << std::endl;
+		}
+		else if(type == CONTINUE)
+		{
+			std::cout << "\tjump " << while_entry.top() << std::endl;
+			std::cout << "%continue_" << if_cnt << ":" << std::endl;
 		}
 		else
 			std::cout << "stmt type error...\n";

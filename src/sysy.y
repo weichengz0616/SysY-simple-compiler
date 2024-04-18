@@ -34,7 +34,7 @@ using namespace std;
 
 // lexer 返回的所有 token 种类的声明
 %token INT RETURN LE GE EQ NEQ LAND LOR CONST
-%token IF ELSE
+%token IF ELSE WHILE BREAK CONTINUE
 %token <str_val> IDENT
 %token <int_val> INT_CONST
 
@@ -158,6 +158,15 @@ MatchedStmt
   ast->type = MatchedStmtAST::OTHER;
   ast->other_stmt = unique_ptr<BaseAST>($1);
   $$ = ast;
+}
+// 注意这里while语句的文法
+| WHILE '(' Exp ')' MatchedStmt
+{
+  auto ast = new MatchedStmtAST();
+  ast->type = MatchedStmtAST::WHILE;
+  ast->exp = unique_ptr<BaseAST>($3);
+  ast->matched_stmt1 = unique_ptr<BaseAST>($5);
+  $$ = ast;
 };
 
 OpenStmt
@@ -219,6 +228,18 @@ OtherStmt
 {
   auto ast = new OtherStmtAST();
   ast->type = OtherStmtAST::ZERO_RETURN;
+  $$ = ast;
+}
+| BREAK ';'
+{
+  auto ast = new OtherStmtAST();
+  ast->type = OtherStmtAST::BREAK;
+  $$ = ast;
+}
+| CONTINUE ';'
+{
+  auto ast = new OtherStmtAST();
+  ast->type = OtherStmtAST::CONTINUE;
   $$ = ast;
 };
 
