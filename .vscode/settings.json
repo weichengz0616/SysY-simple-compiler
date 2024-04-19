@@ -51,6 +51,9 @@
         "map": "cpp",
         "xtree": "cpp",
         "sstream": "cpp",
-        "stack": "cpp"
+        "stack": "cpp",
+        "deque": "cpp",
+        "ranges": "cpp",
+        "span": "cpp"
     }
 }

@@ -1,33 +1,24 @@
-fun @main(): i32
+fun @half(%x_1: i32): i32
 {
 %entry:
 	@x_1= alloc i32
-	store 999 , @x_1
-	jump %while_entry_0
-%while_entry_0:
+	store %x_1 , @x_1
 	%0 = load @x_1
-	%1 = lt %0, 777
-	br %1, %while_body_0, %while_end_0
-%while_body_0:
-	@w_2= alloc i32
-	store 555 , @w_2
-	br 111, %then_1, %end_1
-%then_1:
-	jump %while_entry_0
-%continue_2:
-	jump %end_1
-%end_1:
-	@y_2= alloc i32
-	store 222 , @y_2
-	br 333, %then_2, %end_2
-%then_2:
-	jump %while_end_0
-%break_3:
-	jump %end_2
-%end_2:
-	@z_2= alloc i32
-	store 444 , @z_2
-	jump %while_entry_0
-%while_end_0:
-	ret 0
+	%1 = div %0, 2
+	ret %1
 }
+
+fun @f(): 
+{
+%entry:
+	ret
+}
+
+fun @main(): i32
+{
+%entry:
+	call @f()
+	%2 = call @half(10)
+	ret %2
+}
+

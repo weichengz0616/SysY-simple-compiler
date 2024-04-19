@@ -29,14 +29,15 @@ static int rt_cur;
 // 常量求值
 // 符号表
 // lv 4.2 符号表也可以存变量
-
+// lv 8 也可以存函数名-----value = 0代表无返回值
 struct VALUE
 {
 	// tagged
 	enum VALUE_TYPE
 	{
 		CONST,
-		VAR
+		VAR,
+		FUNCTION
 	};
 	VALUE_TYPE tag;
 	int32_t value;
@@ -60,7 +61,7 @@ struct SYMBOL_TABLE
 		table = std::unordered_map<std::string, VALUE>();
 	}
 };
-static SYMBOL_TABLE *st_head;
+static SYMBOL_TABLE *st_head; // lv8 全局符号表
 static SYMBOL_TABLE *st_cur;
 static int st_tag_cnt = 0;
 
@@ -92,13 +93,19 @@ class CompUnitAST : public BaseAST
 {
 public:
 	// 用智能指针管理对象
-	std::unique_ptr<BaseAST> func_def;
+	std::vector<std::unique_ptr<BaseAST>> func_defs;
 
 	std::string Dump() const override
 	{
 		// std::cout << "compunit dump...\n";
-		func_def->Dump();
 
+		st_head = new SYMBOL_TABLE();
+		st_cur = st_head;
+
+		for(auto& func_def : func_defs)
+			func_def->Dump();
+
+		delete st_head;
 		return std::string();
 	}
 };
@@ -107,27 +114,94 @@ public:
 class FuncDefAST : public BaseAST
 {
 public:
+	enum TYPE {PARAMS, NO_PARAMS};
+	TYPE type;
 	std::unique_ptr<BaseAST> func_type;
 	std::string ident;
 	std::unique_ptr<BaseAST> block;
+	std::vector<std::unique_ptr<BaseAST>> func_f_params;
 
 	std::string Dump() const override
 	{
-		st_head = new SYMBOL_TABLE();
-		st_cur = st_head;
+		//std::cout << "====func duming...\n";
+		// st_head = new SYMBOL_TABLE();
+		// st_cur = st_head;
+		VALUE v;
+		v.tag = VALUE::FUNCTION;
+		v.value = 0;
+		assert(st_head->table.find(ident) == st_head->table.end());
+		st_head->table[ident] = v;
+
+		st_cur->next = new SYMBOL_TABLE();
+		st_cur->next->prev = st_cur;
+		st_cur->next->tag = st_tag_cnt + 1;
+		st_tag_cnt++;
+		st_cur = st_cur->next;
+
 		has_returned.push_back(0);
-		rt_cur = 0;
+		rt_cur = 0;;
+
 		//std::cout << "funcdef: " << has_returned.size() << " " << rt_cur << std::endl;
-		std::cout << "fun @" << ident << "(): ";
-		func_type->Dump();
+		std::vector<std::string> params;
+		std::cout << "fun @" << ident << "(";
+		if(type == PARAMS)
+		{
+			for(int i = 0;i < func_f_params.size();i++)
+			{
+				if(i == 0)
+				{
+					params.push_back(func_f_params[i]->Dump());
+				}
+				else
+				{
+					std::cout << ", ";
+					params.push_back(func_f_params[i]->Dump());
+				}
+			}
+		}
+		std::cout << "): ";
+		std::string return_type = func_type->Dump();
+		if(return_type == "int")
+		{
+			st_head->table[ident].value = 1;
+		}
+		else
+		{
+			st_head->table[ident].value = 0;
+		}
 		std::cout << "{\n";
 		std::cout << "%entry:\n";
+		for(auto& ident : params)
+		{
+			VALUE v;
+			v.tag = VALUE::VAR;
+			auto& symbol_table = st_cur->table;
+			symbol_table[ident] = v;
+
+			std::cout << "\t@" << ident << "_" << st_cur->tag << "= alloc i32\n";
+			std::cout << "\tstore " << "%" << ident << "_" << st_cur->tag << " , @" << ident << "_" << st_cur->tag << std::endl;
+		}
 		block->Dump();
 		if(!has_returned[rt_cur])
-			std::cout << "\tret 0\n";
-		std::cout << "}\n";
+		{
+			if(st_head->table[ident].value == 0)
+			{
+				std::cout << "\tret\n";
+			}
+			else
+			{
+				std::cout << "\tret 0\n";
+			}
+		}
+		std::cout << "}\n\n";
 
-		delete st_head;
+		// delete st_head;
+		st_cur = st_cur->prev;
+		delete st_cur->next;
+		st_cur->next = nullptr;
+
+		has_returned.pop_back();
+
 		return std::string();
 	}
 };
@@ -135,11 +209,35 @@ public:
 class FuncTypeAST : public BaseAST
 {
 public:
+	enum TYPE {INT, VOID};
+	TYPE type;
 	std::string Dump() const override
 	{
-		std::cout << "i32\n";
-
+		if(type == INT)
+		{
+			std::cout << "i32\n";
+			return "int";
+		}	
+		else
+		{
+			std::cout << std::endl;
+			return "void";
+		}
+			
 		return std::string();
+	}
+};
+
+class FuncFParamAST : public BaseAST
+{
+public:
+	std::string btype;
+	std::string ident;
+
+	std::string Dump() const override
+	{
+		std::cout << "%" << ident << "_" << st_cur->tag << ": " << btype;
+		return ident;
 	}
 };
 
@@ -161,12 +259,13 @@ public:
 		//std::cout << "block1: " << has_returned.size() << " " << rt_cur << std::endl;
 		
 		// stmt->Dump();
+		//std::cout << "====block dumping...\n";
 		for (auto i = block_items.begin(); i != block_items.end(); i++)
 		{
 			// std::cout << "blockitem dump...\n";
 			//  if((*i))
 			//  	std::cout << "nullptr...\n";
-
+			//std::cout << "==== items size: " << block_items.size() << std::endl;
 			(*i)->Dump();
 		}
 		
@@ -206,6 +305,7 @@ public:
 
 	std::string Dump() const override
 	{
+		//std::cout << "====stmt dumping...\n";
 		if(type == MATCHED)
 		{
 			matched_stmt->Dump();
@@ -237,7 +337,7 @@ public:
 
 	std::string Dump() const override
 	{
-		//std::cout << "match dumping... " << type << std::endl;
+		// std::cout << "====match dumping... " << type << std::endl;
 		if(type == IFELSE)
 		{
 			uint32_t now_if_cnt = if_cnt;
@@ -324,7 +424,8 @@ public:
 	enum TYPE
 	{
 		IF,
-		IFELSE
+		IFELSE,
+		WHILE
 	};
 	TYPE type;
 	std::unique_ptr<BaseAST> exp;
@@ -334,7 +435,7 @@ public:
 
 	std::string Dump() const override
 	{
-		//std::cout << "open dumping... " << type << std::endl;
+		// std::cout << "====open dumping... " << type << std::endl;
 		if(type == IF)
 		{
 			uint32_t now_if_cnt = if_cnt;
@@ -384,6 +485,37 @@ public:
 			std::cout << "%end_" << now_if_cnt << ":\n";
 			// if_cnt++;
 		}
+		else if(type == WHILE)
+		{
+			uint32_t now_if_cnt = if_cnt;
+			if_cnt++;
+			while_entry.push("%while_entry_" + std::to_string(now_if_cnt));
+			while_end.push("%while_end_" + std::to_string(now_if_cnt));
+
+			std::cout << "\tjump %while_entry_" << now_if_cnt << std::endl;
+			std::cout << "%while_entry_" << now_if_cnt << ":" << std::endl;
+
+			std::string exp_string = exp->Dump();
+			std::cout << "\tbr " << exp_string << ", %while_body_" << now_if_cnt << ", %while_end_" << now_if_cnt << std::endl;
+
+			std::cout << "%while_body_" << now_if_cnt << ":" << std::endl;
+			has_returned.push_back(0);
+			rt_cur++;
+			open_stmt->Dump();
+			bool has_returned1 = has_returned[rt_cur];
+			if(!has_returned1)
+				std::cout << "\tjump %while_entry_" << now_if_cnt << std::endl;
+			has_returned.pop_back();
+			rt_cur--;
+			
+			while_entry.pop();
+			while_end.pop();
+			std::cout << "%while_end_" << now_if_cnt << ":\n";
+		}
+		else
+		{
+
+		}
 
 		return std::string();
 	}
@@ -411,8 +543,10 @@ public:
 
 	std::string Dump() const override
 	{
+		//std::cout << "====stmt others dumping...\n";
 		if (type == ONE_RETURN)
 		{
+			//std::cout << "====stmt one return dumping...\n";
 			has_returned[rt_cur] = true;
 			// std::cout << "stmt dump...return\n";
 			std::string exp_string = exp->Dump();
@@ -450,6 +584,7 @@ public:
 		}
 		else if(type == ONE_EXP)
 		{
+			//std::cout << "====one exp dumping...\n";
 			exp->Dump();
 		}
 		else if(type == BLOCK)
@@ -511,6 +646,7 @@ public:
 
 	std::string Dump() const override
 	{
+		//std::cout << "====primary exp dumping...\n";
 		if (exp)
 		{
 			return exp->Dump();
@@ -524,6 +660,7 @@ public:
 			{
 				st_tmp = st_tmp->prev;
 			}
+			assert(st_tmp);
 			auto &symbol_table = st_tmp->table;
 			if (symbol_table[ident].tag == VALUE::CONST)
 				return std::to_string(lval->getValue());
@@ -561,9 +698,13 @@ public:
 class UnaryExpAST : public BaseAST
 {
 public:
+	enum TYPE { IDENT, IDENT_PARAMS};
+	TYPE type;
 	std::unique_ptr<BaseAST> primary_exp;
 	std::unique_ptr<BaseAST> unary_op;
 	std::unique_ptr<BaseAST> unary_exp;
+	std::string ident;
+	std::vector<std::unique_ptr<BaseAST>> func_r_params;
 
 	std::string Dump() const override
 	{
@@ -625,7 +766,59 @@ public:
 				}
 			}
 		}
+		// function call
+		else if(type == IDENT)
+		{
+			std::cout << "\t";
+			// 有返回值
+			if(st_head->table[ident].value == 1)
+			{
+				std::cout << "%" << reg_cnt << " = ";
+				reg_cnt++;
+			}
 
+			std::cout << "call @" << ident;
+			std::cout << "(";
+			std::cout << ")\n";
+
+			if(st_head->table[ident].value == 1)
+			{
+				return "%" + std::to_string(reg_cnt - 1);
+			}
+		}
+		else if(type == IDENT_PARAMS)
+		{
+			std::cout << "\t";
+			// 有返回值
+			if(st_head->table[ident].value == 1)
+			{
+				std::cout << "%" << reg_cnt << " = ";
+				reg_cnt++;
+			}
+
+			std::cout << "call @" << ident;
+			std::cout << "(";
+
+			// 参数
+			for(int i = 0;i < func_r_params.size();i++)
+			{
+				if(i == 0)
+				{
+					std::cout << func_r_params[i]->getValue();
+				}
+				else
+				{
+					std::cout << ", " << func_r_params[i]->getValue();
+				}
+			}
+
+			std::cout << ")\n";
+
+			if(st_head->table[ident].value == 1)
+			{
+				return "%" + std::to_string(reg_cnt - 1);
+			}
+		}
 		return std::string();
 	}
 
@@ -1083,10 +1276,10 @@ public:
 class BTypeAST : public BaseAST
 {
 public:
+	std::string btype;
 	std::string Dump() const override
 	{
-
-		return std::string();
+		return btype;
 	}
 };
 

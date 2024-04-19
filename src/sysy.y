@@ -33,28 +33,52 @@ using namespace std;
 }
 
 // lexer 返回的所有 token 种类的声明
-%token INT RETURN LE GE EQ NEQ LAND LOR CONST
+%token INT VOID RETURN LE GE EQ NEQ LAND LOR CONST 
 %token IF ELSE WHILE BREAK CONTINUE
 %token <str_val> IDENT
 %token <int_val> INT_CONST
 
 // 非终结符的类型定义
 %type <ast_val> FuncDef FuncType Block Stmt
+%type <ast_val> FuncFParam  
 %type <ast_val> MatchedStmt OpenStmt OtherStmt
 %type <ast_val> Exp PrimaryExp UnaryExp UnaryOp MulExp AddExp RelExp EqExp LAndExp LOrExp
 %type <ast_val> Decl ConstDecl BType ConstDef ConstInitVal BlockItem LVal ConstExp VarDecl VarDef InitVal
-%type <vec_val> BlockItemList ConstDefList VarDefList
+%type <vec_val> BlockItemList ConstDefList VarDefList FuncDefList FuncFParams FuncRParams
 %type <int_val> Number
 
 %%
 
 
 CompUnit
-: FuncDef 
+: FuncDefList
 {
   auto comp_unit = make_unique<CompUnitAST>();
-  comp_unit->func_def = unique_ptr<BaseAST>($1);
+  // comp_unit->func_def = unique_ptr<BaseAST>($1);
+  
+  auto tmp = $1;
+  comp_unit->func_defs = vector<unique_ptr<BaseAST>>();
+  for(auto& i : *tmp)
+  {
+    comp_unit->func_defs.push_back(move(i));
+  }
+  delete tmp;
+
   ast = move(comp_unit);
+};
+
+FuncDefList
+: FuncDef
+{
+  auto tmp = new vector<unique_ptr<BaseAST>>();
+  tmp->push_back(unique_ptr<BaseAST>($1));
+  $$ = tmp;
+}
+| FuncDefList FuncDef
+{
+  auto tmp = $1;
+  tmp->push_back(unique_ptr<BaseAST>($2));
+  $$ = tmp;
 };
 
 
@@ -62,9 +86,28 @@ FuncDef
 : FuncType IDENT '(' ')' Block
 {
   auto ast = new FuncDefAST();
+  ast->type = FuncDefAST::NO_PARAMS;
   ast->func_type = unique_ptr<BaseAST>($1);
   ast->ident = *unique_ptr<string>($2);
   ast->block = unique_ptr<BaseAST>($5);
+  $$ = ast;
+}
+| FuncType IDENT '(' FuncFParams ')' Block
+{
+  auto ast = new FuncDefAST();
+  ast->type = FuncDefAST::PARAMS;
+  ast->func_type = unique_ptr<BaseAST>($1);
+  ast->ident = *unique_ptr<string>($2);
+  ast->block = unique_ptr<BaseAST>($6);
+
+  auto tmp = $4;
+  ast->func_f_params = vector<unique_ptr<BaseAST>>();
+  // unique_ptr 必须是引用
+  for(auto& i : *tmp)
+  {
+    ast->func_f_params.push_back(move(i));
+  }
+  delete tmp;
   $$ = ast;
 };
 
@@ -73,7 +116,52 @@ FuncType
 : INT 
 {
   auto ast = new FuncTypeAST();
+  ast->type = FuncTypeAST::INT;
   $$ = ast;
+}
+| VOID
+{
+  auto ast = new FuncTypeAST();
+  ast->type = FuncTypeAST::VOID;
+  $$ = ast;
+};
+
+FuncFParams
+: FuncFParam
+{
+  auto tmp = new vector<unique_ptr<BaseAST>>();
+  tmp->push_back(unique_ptr<BaseAST>($1));
+  $$ = tmp;
+}
+| FuncFParams ',' FuncFParam
+{
+  auto tmp = $1;
+  tmp->push_back(unique_ptr<BaseAST>($3));
+  $$ = tmp;
+};
+
+FuncFParam
+: BType IDENT
+{
+  auto ast = new FuncFParamAST();
+  ast->btype = unique_ptr<BaseAST>($1)->Dump();
+  ast->ident = *unique_ptr<string>($2);
+
+  $$ = ast;
+};
+
+FuncRParams
+: Exp
+{
+  auto tmp = new vector<unique_ptr<BaseAST>>();
+  tmp->push_back(unique_ptr<BaseAST>($1));
+  $$ = tmp;
+}
+| FuncRParams ',' Exp
+{
+  auto tmp = $1;
+  tmp->push_back(unique_ptr<BaseAST>($3));
+  $$ = tmp;
 };
 
 
@@ -186,6 +274,14 @@ OpenStmt
   ast->matched_stmt = unique_ptr<BaseAST>($5);
   ast->open_stmt = unique_ptr<BaseAST>($7);
   $$ = ast;
+}
+| WHILE '(' Exp ')' OpenStmt
+{
+  auto ast = new OpenStmtAST();
+  ast->type = OpenStmtAST::WHILE;
+  ast->exp = unique_ptr<BaseAST>($3);
+  ast->open_stmt = unique_ptr<BaseAST>($5);
+  $$ = ast;
 };
 
 OtherStmt
@@ -295,7 +391,30 @@ UnaryExp
   ast->unary_op = unique_ptr<BaseAST>($1);
   ast->unary_exp = unique_ptr<BaseAST>($2);
   $$ = ast;
-};
+}
+| IDENT '(' ')' 
+{
+  auto ast = new UnaryExpAST();
+  ast->type = UnaryExpAST::IDENT;
+  ast->ident = *unique_ptr<string>($1);
+  $$ = ast;
+}
+| IDENT '(' FuncRParams ')'
+{
+  auto ast = new UnaryExpAST();
+  ast->type = UnaryExpAST::IDENT_PARAMS;
+  ast->ident = *unique_ptr<string>($1);
+
+  auto tmp = $3;
+  ast->func_r_params = vector<unique_ptr<BaseAST>>();
+  for(auto& i : *tmp)
+  {
+    ast->func_r_params.push_back(move(i));
+  }
+  delete tmp;
+  $$ = ast;
+}
+;
 
 UnaryOp
 : '+'
@@ -525,6 +644,7 @@ BType
 : INT
 {
   auto ast = new BTypeAST();
+  ast->btype = "i32";
   $$ = ast;
 };
 

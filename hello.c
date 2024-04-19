@@ -157,48 +157,64 @@
 
 
 // lv 7
-int main() {
-  // int i = 0;
-  // while (i < 10) i = i + 1;
-  // return i;
+// int main() {
+//   // int i = 0;
+//   // while (i < 10) i = i + 1;
+//   // return i;
 
-  // while(1)
-  // {
-  //   if(222)
-  //   {
-  //     int x = 12;
-  //     return x;
-  //   }
-  //   else
-  //     return 333;
-  // }
+//   // while(1)
+//   // {
+//   //   if(222)
+//   //   {
+//   //     int x = 12;
+//   //     return x;
+//   //   }
+//   //   else
+//   //     return 333;
+//   // }
 
-  // return 1;
+//   // return 1;
 
-  // while (1)
-  // {
-  //   int x = 2;
+//   // while (1)
+//   // {
+//   //   int x = 2;
 
-  //   if(333)
-  //     break;
-  //   else
-  //     x = 777;
+//   //   if(333)
+//   //     break;
+//   //   else
+//   //     x = 777;
     
-  //   x = 999;
-  // }
-  // return 0;
+//   //   x = 999;
+//   // }
+//   // return 0;
 
-  int x = 999;
-  while (x < 777)
-  {
-    int w = 555;
-    if(111)
-      continue;
-    int y = 222;
-    if(333)
-      break;
-    int z = 444;
-  }
-  //return 0;
+//   int x = 0;
+//   while(1)
+  
+//     if(222)
+//     {
+//       x = 333;
+//     }
+  
+  
+
+
+//   return x;
+//   //return 0;
+// }
+
+
+// lv 8
+int half(int x) {
+  return x / 2;
 }
+
+void f() {}
+
+int main() {
+  f();
+  return half(10);
+  return 0;
+}
+
 
