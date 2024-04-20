@@ -159,7 +159,7 @@ public:
 				}
 			}
 		}
-		std::cout << "): ";
+		std::cout << ")";
 		std::string return_type = func_type->Dump();
 		if(return_type == "int")
 		{
@@ -171,8 +171,12 @@ public:
 		}
 		std::cout << "{\n";
 		std::cout << "%entry:\n";
+
+		// 这里把所有参数都重新存起来, 简化后端实现
+		// 不然在后端还得讨论IR 数值/表达式的值/参数值
 		for(auto& ident : params)
 		{
+			// 加入符号表, 普通的局部变量
 			VALUE v;
 			v.tag = VALUE::VAR;
 			auto& symbol_table = st_cur->table;
@@ -181,6 +185,7 @@ public:
 			std::cout << "\t@" << ident << "_" << st_cur->tag << "= alloc i32\n";
 			std::cout << "\tstore " << "%" << ident << "_" << st_cur->tag << " , @" << ident << "_" << st_cur->tag << std::endl;
 		}
+
 		block->Dump();
 		if(!has_returned[rt_cur])
 		{
@@ -215,7 +220,7 @@ public:
 	{
 		if(type == INT)
 		{
-			std::cout << "i32\n";
+			std::cout << ": i32\n";
 			return "int";
 		}	
 		else
