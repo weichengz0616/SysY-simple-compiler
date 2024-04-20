@@ -205,21 +205,25 @@
 
 
 // lv 8
-int half(int x) {
-  return x / 2;
-}
+// int half(int x) {
+//   return x / 2;
+// }
 
-void f() {}
+// void f() {}
 
-int main() {
-  f();
-  return half(10);
-  return 0;
-}
+// int main() {
+//   f();
+//   return half(10);
+//   return 0;
+// }
 
 // int main(int a)
 // {
 //   return a + 1;
 // }
+
+int main() {
+  return getint();
+}
 
 

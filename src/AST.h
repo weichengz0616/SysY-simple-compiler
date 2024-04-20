@@ -102,6 +102,30 @@ public:
 		st_head = new SYMBOL_TABLE();
 		st_cur = st_head;
 
+		// 运行时库的声明
+		std::cout << "decl @getint(): i32\n";
+		std::cout << "decl @getch(): i32\n";
+		std::cout << "decl @getarray(*i32): i32\n";
+		std::cout << "decl @putint(i32)\n";
+		std::cout << "decl @putch(i32)\n";
+		std::cout << "decl @putarray(i32, *i32)\n";
+		std::cout << "decl @starttime()\n";
+		std::cout << "decl @stoptime()\n";
+		std::cout << std::endl;
+		// 将运行时库放进符号表
+		VALUE v;
+		v.tag = VALUE::FUNCTION;
+		v.value = 1;
+		st_head->table["getint"] = v;
+		st_head->table["getch"] = v;
+		st_head->table["getarray"] = v;
+		v.value = 0;
+		st_head->table["putint"] = v;
+		st_head->table["putch"] = v;
+		st_head->table["putarray"] = v;
+		st_head->table["starttime"] = v;
+		st_head->table["stoptime"] = v;
+
 		for(auto& func_def : func_defs)
 			func_def->Dump();
 

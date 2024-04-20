@@ -52,6 +52,15 @@ void visit(const koopa_raw_program_t &program)
 {
     // 执行一些其他的必要操作
     // ...
+    // 添加运行时库
+    func_ret["@getint"] = true;
+    func_ret["@getch"] = true;
+    func_ret["@getarray"] = true;
+    func_ret["@putint"] = false;
+    func_ret["@putch"] = false;
+    func_ret["@putarray"] = false;
+    func_ret["@starttime"] = false;
+    func_ret["@stoptime"] = false;
     // 访问所有全局变量
     visit(program.values);
     // 访问所有函数
@@ -90,6 +99,10 @@ void visit(const koopa_raw_slice_t &slice)
 // 访问函数
 void visit(const koopa_raw_function_t &func)
 {
+    // 跳过函数声明
+    if(func->bbs.len == 0)
+        return;
+    
     func_now = std::string(func->name);
     // 计算栈帧大小
     // 遍历函数的所有指令
@@ -560,6 +573,7 @@ int32_t visit(const koopa_raw_call_t &call)
     }
     std::cout << "\tcall " << call.callee->name + 1 << std::endl;
 
+    assert(func_ret.find(std::string(call.callee->name)) != func_ret.end());
     if(func_ret[std::string(call.callee->name)])
     {
         //std::cout << "call return\n";
