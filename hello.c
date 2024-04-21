@@ -222,8 +222,31 @@
 //   return a + 1;
 // }
 
+// int main() {
+//   return getint();
+// }
+
+// int var;
+
+// const int one = 1;
+// // int y = one + 7;
+// int main() {
+//   // int x = 1;
+//   if(var)
+//   {
+
+//   }
+//   return var;
+// }
+
+int var;
+
+const int one = 1;
+
 int main() {
-  return getint();
+  return var + one;
 }
+
+
 
 

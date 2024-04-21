@@ -39,51 +39,100 @@ using namespace std;
 %token <int_val> INT_CONST
 
 // 非终结符的类型定义
-%type <ast_val> FuncDef FuncType Block Stmt
+%type <ast_val> FuncDef Type Block Stmt
 %type <ast_val> FuncFParam  
 %type <ast_val> MatchedStmt OpenStmt OtherStmt
 %type <ast_val> Exp PrimaryExp UnaryExp UnaryOp MulExp AddExp RelExp EqExp LAndExp LOrExp
-%type <ast_val> Decl ConstDecl BType ConstDef ConstInitVal BlockItem LVal ConstExp VarDecl VarDef InitVal
-%type <vec_val> BlockItemList ConstDefList VarDefList FuncDefList FuncFParams FuncRParams
+%type <ast_val> Decl ConstDecl ConstDef ConstInitVal BlockItem LVal ConstExp VarDecl VarDef InitVal
+%type <vec_val> BlockItemList ConstDefList VarDefList DeclOrFuncDefList FuncFParams FuncRParams
 %type <int_val> Number
 
 %%
 
 
 CompUnit
-: FuncDefList
+: DeclOrFuncDefList
 {
   auto comp_unit = make_unique<CompUnitAST>();
   // comp_unit->func_def = unique_ptr<BaseAST>($1);
   
   auto tmp = $1;
-  comp_unit->func_defs = vector<unique_ptr<BaseAST>>();
+  comp_unit->global_defs = vector<unique_ptr<BaseAST>>();
   for(auto& i : *tmp)
   {
-    comp_unit->func_defs.push_back(move(i));
+    comp_unit->global_defs.push_back(move(i));
   }
   delete tmp;
 
   ast = move(comp_unit);
 };
 
-FuncDefList
-: FuncDef
+// DeclOrFuncDefList
+// : DeclOrFuncDef
+// {
+//   auto tmp = new vector<unique_ptr<BaseAST>>();
+//   tmp->push_back(unique_ptr<BaseAST>($1));
+//   $$ = tmp;
+// }
+// | DeclOrFuncDefList DeclOrFuncDef
+// {
+//   auto tmp = $1;
+//   tmp->push_back(unique_ptr<BaseAST>($2));
+//   $$ = tmp;
+// };
+
+// DeclOrFuncDef
+// : Decl
+// {
+//   $$ = $1;
+// }
+// | FuncDef
+// {
+//   $$ = $1;
+// };
+
+DeclOrFuncDefList
+: Decl
 {
   auto tmp = new vector<unique_ptr<BaseAST>>();
   tmp->push_back(unique_ptr<BaseAST>($1));
   $$ = tmp;
 }
-| FuncDefList FuncDef
+| FuncDef
+{
+  auto tmp = new vector<unique_ptr<BaseAST>>();
+  tmp->push_back(unique_ptr<BaseAST>($1));
+  $$ = tmp;
+}
+| DeclOrFuncDefList Decl
+{
+  auto tmp = $1;
+  tmp->push_back(unique_ptr<BaseAST>($2));
+  $$ = tmp;
+}
+| DeclOrFuncDefList FuncDef
 {
   auto tmp = $1;
   tmp->push_back(unique_ptr<BaseAST>($2));
   $$ = tmp;
 };
 
+Type
+: INT
+{
+  auto ast = new TypeAST();
+  ast->type = "int";
+  $$ = ast;
+}
+| VOID
+{
+  auto ast = new TypeAST();
+  ast->type = "void";
+  $$ = ast;
+};
 
 FuncDef
-: FuncType IDENT '(' ')' Block
+: Type IDENT '(' ')' Block
 {
   auto ast = new FuncDefAST();
   ast->type = FuncDefAST::NO_PARAMS;
@@ -92,7 +141,7 @@ FuncDef
   ast->block = unique_ptr<BaseAST>($5);
   $$ = ast;
 }
-| FuncType IDENT '(' FuncFParams ')' Block
+| Type IDENT '(' FuncFParams ')' Block
 {
   auto ast = new FuncDefAST();
   ast->type = FuncDefAST::PARAMS;
@@ -112,19 +161,19 @@ FuncDef
 };
 
 
-FuncType
-: INT 
-{
-  auto ast = new FuncTypeAST();
-  ast->type = FuncTypeAST::INT;
-  $$ = ast;
-}
-| VOID
-{
-  auto ast = new FuncTypeAST();
-  ast->type = FuncTypeAST::VOID;
-  $$ = ast;
-};
+// FuncType
+// : INT 
+// {
+//   auto ast = new FuncTypeAST();
+//   ast->type = FuncTypeAST::INT;
+//   $$ = ast;
+// }
+// | VOID
+// {
+//   auto ast = new FuncTypeAST();
+//   ast->type = FuncTypeAST::VOID;
+//   $$ = ast;
+// };
 
 FuncFParams
 : FuncFParam
@@ -141,10 +190,12 @@ FuncFParams
 };
 
 FuncFParam
-: BType IDENT
+: Type IDENT
 {
   auto ast = new FuncFParamAST();
-  ast->btype = unique_ptr<BaseAST>($1)->Dump();
+  auto tmp = unique_ptr<BaseAST>($1)->Dump();
+  assert(tmp == "int");
+  ast->btype = "i32";
   ast->ident = *unique_ptr<string>($2);
 
   $$ = ast;
@@ -611,7 +662,7 @@ Decl
 };
 
 ConstDecl
-: CONST BType ConstDefList ';'
+: CONST Type ConstDefList ';'
 {
   auto ast = new ConstDeclAST();
   ast->btype = unique_ptr<BaseAST>($2);
@@ -640,13 +691,13 @@ ConstDefList
   $$ = tmp;
 }
 
-BType
-: INT
-{
-  auto ast = new BTypeAST();
-  ast->btype = "i32";
-  $$ = ast;
-};
+// BType
+// : INT
+// {
+//   auto ast = new BTypeAST();
+//   ast->btype = "i32";
+//   $$ = ast;
+// };
 
 ConstDef
 : IDENT '=' ConstInitVal
@@ -684,7 +735,7 @@ ConstExp
 };
 
 VarDecl
-: BType VarDefList ';'
+: Type VarDefList ';'
 {
   auto ast = new VarDeclAST();
   ast->btype = unique_ptr<BaseAST>($1);

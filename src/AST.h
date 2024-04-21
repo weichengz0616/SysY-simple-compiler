@@ -24,7 +24,6 @@ static uint32_t if_cnt = 0;
 static std::vector<bool> has_returned = std::vector<bool>();
 static int rt_cur;
 
-
 // lv 4.1
 // 常量求值
 // 符号表
@@ -65,13 +64,11 @@ static SYMBOL_TABLE *st_head; // lv8 全局符号表
 static SYMBOL_TABLE *st_cur;
 static int st_tag_cnt = 0;
 
-
 // lv7
 // break/continue语句需要知道当前while循环的entry和end在哪里
 // 这里用栈实现, 栈顶即当前
 static std::stack<std::string> while_entry;
 static std::stack<std::string> while_end;
-
 
 // 所有 AST 的基类
 class BaseAST
@@ -93,7 +90,7 @@ class CompUnitAST : public BaseAST
 {
 public:
 	// 用智能指针管理对象
-	std::vector<std::unique_ptr<BaseAST>> func_defs;
+	std::vector<std::unique_ptr<BaseAST>> global_defs;
 
 	std::string Dump() const override
 	{
@@ -126,8 +123,8 @@ public:
 		st_head->table["starttime"] = v;
 		st_head->table["stoptime"] = v;
 
-		for(auto& func_def : func_defs)
-			func_def->Dump();
+		for (auto &global_def : global_defs)
+			global_def->Dump();
 
 		delete st_head;
 		return std::string();
@@ -138,7 +135,11 @@ public:
 class FuncDefAST : public BaseAST
 {
 public:
-	enum TYPE {PARAMS, NO_PARAMS};
+	enum TYPE
+	{
+		PARAMS,
+		NO_PARAMS
+	};
 	TYPE type;
 	std::unique_ptr<BaseAST> func_type;
 	std::string ident;
@@ -147,9 +148,9 @@ public:
 
 	std::string Dump() const override
 	{
-		//std::cout << "====func duming...\n";
-		// st_head = new SYMBOL_TABLE();
-		// st_cur = st_head;
+		// std::cout << "====func duming...\n";
+		//  st_head = new SYMBOL_TABLE();
+		//  st_cur = st_head;
 		VALUE v;
 		v.tag = VALUE::FUNCTION;
 		v.value = 0;
@@ -163,16 +164,17 @@ public:
 		st_cur = st_cur->next;
 
 		has_returned.push_back(0);
-		rt_cur = 0;;
+		rt_cur = 0;
+		;
 
-		//std::cout << "funcdef: " << has_returned.size() << " " << rt_cur << std::endl;
+		// std::cout << "funcdef: " << has_returned.size() << " " << rt_cur << std::endl;
 		std::vector<std::string> params;
 		std::cout << "fun @" << ident << "(";
-		if(type == PARAMS)
+		if (type == PARAMS)
 		{
-			for(int i = 0;i < func_f_params.size();i++)
+			for (int i = 0; i < func_f_params.size(); i++)
 			{
-				if(i == 0)
+				if (i == 0)
 				{
 					params.push_back(func_f_params[i]->Dump());
 				}
@@ -185,12 +187,14 @@ public:
 		}
 		std::cout << ")";
 		std::string return_type = func_type->Dump();
-		if(return_type == "int")
+		if (return_type == "int")
 		{
+			std::cout << ": i32\n";
 			st_head->table[ident].value = 1;
 		}
 		else
 		{
+			std::cout << "\n";
 			st_head->table[ident].value = 0;
 		}
 		std::cout << "{\n";
@@ -198,22 +202,23 @@ public:
 
 		// 这里把所有参数都重新存起来, 简化后端实现
 		// 不然在后端还得讨论IR 数值/表达式的值/参数值
-		for(auto& ident : params)
+		for (auto &ident : params)
 		{
 			// 加入符号表, 普通的局部变量
 			VALUE v;
 			v.tag = VALUE::VAR;
-			auto& symbol_table = st_cur->table;
+			auto &symbol_table = st_cur->table;
 			symbol_table[ident] = v;
 
 			std::cout << "\t@" << ident << "_" << st_cur->tag << "= alloc i32\n";
-			std::cout << "\tstore " << "%" << ident << "_" << st_cur->tag << " , @" << ident << "_" << st_cur->tag << std::endl;
+			std::cout << "\tstore "
+					  << "%" << ident << "_" << st_cur->tag << " , @" << ident << "_" << st_cur->tag << std::endl;
 		}
 
 		block->Dump();
-		if(!has_returned[rt_cur])
+		if (!has_returned[rt_cur])
 		{
-			if(st_head->table[ident].value == 0)
+			if (st_head->table[ident].value == 0)
 			{
 				std::cout << "\tret\n";
 			}
@@ -235,27 +240,38 @@ public:
 	}
 };
 
-class FuncTypeAST : public BaseAST
+class TypeAST : public BaseAST
 {
 public:
-	enum TYPE {INT, VOID};
-	TYPE type;
+	std::string type;
+
 	std::string Dump() const override
 	{
-		if(type == INT)
-		{
-			std::cout << ": i32\n";
-			return "int";
-		}	
-		else
-		{
-			std::cout << std::endl;
-			return "void";
-		}
-			
-		return std::string();
+		return type;
 	}
 };
+
+// class FuncTypeAST : public BaseAST
+// {
+// public:
+// 	enum TYPE {INT, VOID};
+// 	TYPE type;
+// 	std::string Dump() const override
+// 	{
+// 		if(type == INT)
+// 		{
+// 			std::cout << ": i32\n";
+// 			return "int";
+// 		}
+// 		else
+// 		{
+// 			std::cout << std::endl;
+// 			return "void";
+// 		}
+
+// 		return std::string();
+// 	}
+// };
 
 class FuncFParamAST : public BaseAST
 {
@@ -285,19 +301,18 @@ public:
 
 		// has_returned.push_back(0);
 		// rt_cur++;
-		//std::cout << "block1: " << has_returned.size() << " " << rt_cur << std::endl;
-		
+		// std::cout << "block1: " << has_returned.size() << " " << rt_cur << std::endl;
+
 		// stmt->Dump();
-		//std::cout << "====block dumping...\n";
+		// std::cout << "====block dumping...\n";
 		for (auto i = block_items.begin(); i != block_items.end(); i++)
 		{
 			// std::cout << "blockitem dump...\n";
 			//  if((*i))
 			//  	std::cout << "nullptr...\n";
-			//std::cout << "==== items size: " << block_items.size() << std::endl;
+			// std::cout << "==== items size: " << block_items.size() << std::endl;
 			(*i)->Dump();
 		}
-		
 
 		st_cur = st_cur->prev;
 		delete st_cur->next;
@@ -305,7 +320,7 @@ public:
 
 		// has_returned.pop_back();
 		// rt_cur--;
-		//std::cout << "block2: " << has_returned.size() << " " << rt_cur << std::endl;
+		// std::cout << "block2: " << has_returned.size() << " " << rt_cur << std::endl;
 
 		return std::string();
 	}
@@ -334,12 +349,12 @@ public:
 
 	std::string Dump() const override
 	{
-		//std::cout << "====stmt dumping...\n";
-		if(type == MATCHED)
+		// std::cout << "====stmt dumping...\n";
+		if (type == MATCHED)
 		{
 			matched_stmt->Dump();
 		}
-		else if(type == OPEN)
+		else if (type == OPEN)
 		{
 			open_stmt->Dump();
 		}
@@ -367,37 +382,37 @@ public:
 	std::string Dump() const override
 	{
 		// std::cout << "====match dumping... " << type << std::endl;
-		if(type == IFELSE)
+		if (type == IFELSE)
 		{
 			uint32_t now_if_cnt = if_cnt;
 			if_cnt++;
 			// std::cout << "================== matched ifelse dump...\n";
 			std::string exp_string = exp->Dump();
 			std::cout << "\tbr " << exp_string << ", %then_" << now_if_cnt << ", %else_" << now_if_cnt << std::endl;
-			
+
 			has_returned.push_back(0);
 			rt_cur++;
 			std::cout << "%then_" << now_if_cnt << ":\n";
 			matched_stmt1->Dump();
 			bool has_returned1 = has_returned[rt_cur];
-			if(!has_returned1)
+			if (!has_returned1)
 				std::cout << "\tjump %end_" << now_if_cnt << std::endl;
 			has_returned.pop_back();
 			rt_cur--;
-			
+
 			has_returned.push_back(0);
 			rt_cur++;
 			std::cout << "%else_" << now_if_cnt << ":\n";
 			matched_stmt2->Dump();
 			bool has_returned2 = has_returned[rt_cur];
-			if(!has_returned2)
+			if (!has_returned2)
 				std::cout << "\tjump %end_" << now_if_cnt << std::endl;
 			has_returned.pop_back();
 			rt_cur--;
 
 			// fix bug lv6
 			// 两个分支已经都有return了, 就不要后续stmt了
-			if(has_returned1 && has_returned2)
+			if (has_returned1 && has_returned2)
 			{
 				has_returned[rt_cur] = true;
 			}
@@ -405,12 +420,12 @@ public:
 				std::cout << "%end_" << now_if_cnt << ":\n";
 			// if_cnt++;
 		}
-		else if(type == OTHER)
+		else if (type == OTHER)
 		{
 			// std::cout << "================== matched other dump...\n";
 			other_stmt->Dump();
 		}
-		else if(type == WHILE)
+		else if (type == WHILE)
 		{
 			uint32_t now_if_cnt = if_cnt;
 			if_cnt++;
@@ -428,11 +443,11 @@ public:
 			rt_cur++;
 			matched_stmt1->Dump();
 			bool has_returned1 = has_returned[rt_cur];
-			if(!has_returned1)
+			if (!has_returned1)
 				std::cout << "\tjump %while_entry_" << now_if_cnt << std::endl;
 			has_returned.pop_back();
 			rt_cur--;
-			
+
 			while_entry.pop();
 			while_end.pop();
 			// if(has_returned1)
@@ -440,7 +455,7 @@ public:
 			// 	has_returned[rt_cur] = true;
 			// }
 			// else
-				std::cout << "%while_end_" << now_if_cnt << ":\n";
+			std::cout << "%while_end_" << now_if_cnt << ":\n";
 		}
 
 		return std::string();
@@ -465,7 +480,7 @@ public:
 	std::string Dump() const override
 	{
 		// std::cout << "====open dumping... " << type << std::endl;
-		if(type == IF)
+		if (type == IF)
 		{
 			uint32_t now_if_cnt = if_cnt;
 			if_cnt++;
@@ -477,7 +492,7 @@ public:
 			rt_cur++;
 			std::cout << "%then_" << now_if_cnt << ":\n";
 			stmt->Dump();
-			if(!has_returned[rt_cur])
+			if (!has_returned[rt_cur])
 				std::cout << "\tjump %end_" << now_if_cnt << std::endl;
 			has_returned.pop_back();
 			rt_cur--;
@@ -485,36 +500,36 @@ public:
 			std::cout << "%end_" << now_if_cnt << ":\n";
 			// if_cnt++;
 		}
-		else if(type == IFELSE)
+		else if (type == IFELSE)
 		{
 			uint32_t now_if_cnt = if_cnt;
 			if_cnt++;
 
 			std::string exp_string = exp->Dump();
 			std::cout << "\tbr " << exp_string << ", %then_" << now_if_cnt << ", %else_" << now_if_cnt << std::endl;
-			
+
 			has_returned.push_back(0);
 			rt_cur++;
 			std::cout << "%then_" << now_if_cnt << ":\n";
 			matched_stmt->Dump();
-			if(!has_returned[rt_cur])
+			if (!has_returned[rt_cur])
 				std::cout << "\tjump %end_" << now_if_cnt << std::endl;
 			has_returned.pop_back();
 			rt_cur--;
-			
+
 			has_returned.push_back(0);
 			rt_cur++;
 			std::cout << "%else_" << now_if_cnt << ":\n";
 			open_stmt->Dump();
-			if(!has_returned[rt_cur])
+			if (!has_returned[rt_cur])
 				std::cout << "\tjump %end_" << now_if_cnt << std::endl;
 			has_returned.pop_back();
 			rt_cur--;
-			
+
 			std::cout << "%end_" << now_if_cnt << ":\n";
 			// if_cnt++;
 		}
-		else if(type == WHILE)
+		else if (type == WHILE)
 		{
 			uint32_t now_if_cnt = if_cnt;
 			if_cnt++;
@@ -532,18 +547,17 @@ public:
 			rt_cur++;
 			open_stmt->Dump();
 			bool has_returned1 = has_returned[rt_cur];
-			if(!has_returned1)
+			if (!has_returned1)
 				std::cout << "\tjump %while_entry_" << now_if_cnt << std::endl;
 			has_returned.pop_back();
 			rt_cur--;
-			
+
 			while_entry.pop();
 			while_end.pop();
 			std::cout << "%while_end_" << now_if_cnt << ":\n";
 		}
 		else
 		{
-
 		}
 
 		return std::string();
@@ -572,10 +586,10 @@ public:
 
 	std::string Dump() const override
 	{
-		//std::cout << "====stmt others dumping...\n";
+		// std::cout << "====stmt others dumping...\n";
 		if (type == ONE_RETURN)
 		{
-			//std::cout << "====stmt one return dumping...\n";
+			// std::cout << "====stmt one return dumping...\n";
 			has_returned[rt_cur] = true;
 			// std::cout << "stmt dump...return\n";
 			std::string exp_string = exp->Dump();
@@ -583,7 +597,7 @@ public:
 					  << exp_string; // 返回当前最新的reg
 			std::cout << std::endl;
 		}
-		else if(type == ZERO_RETURN)
+		else if (type == ZERO_RETURN)
 		{
 			has_returned[rt_cur] = true;
 			// 注意这里只能处理int函数
@@ -607,26 +621,26 @@ public:
 			symbol_table[lval_string].value = new_value;
 			std::cout << "\tstore " << exp_string << " , @" << lval_string << "_" << st_tmp->tag << std::endl;
 		}
-		else if(type == ZERO_EXP)
+		else if (type == ZERO_EXP)
 		{
 			// 啥也不干
 		}
-		else if(type == ONE_EXP)
+		else if (type == ONE_EXP)
 		{
-			//std::cout << "====one exp dumping...\n";
+			// std::cout << "====one exp dumping...\n";
 			exp->Dump();
 		}
-		else if(type == BLOCK)
+		else if (type == BLOCK)
 		{
 			// std::cout << "================== other block dump...\n";
 			block->Dump();
 		}
-		else if(type == BREAK)
+		else if (type == BREAK)
 		{
 			std::cout << "\tjump " << while_end.top() << std::endl;
 			std::cout << "%break_" << if_cnt << ":" << std::endl;
 		}
-		else if(type == CONTINUE)
+		else if (type == CONTINUE)
 		{
 			std::cout << "\tjump " << while_entry.top() << std::endl;
 			std::cout << "%continue_" << if_cnt << ":" << std::endl;
@@ -675,7 +689,7 @@ public:
 
 	std::string Dump() const override
 	{
-		//std::cout << "====primary exp dumping...\n";
+		// std::cout << "====primary exp dumping...\n";
 		if (exp)
 		{
 			return exp->Dump();
@@ -727,7 +741,11 @@ public:
 class UnaryExpAST : public BaseAST
 {
 public:
-	enum TYPE { IDENT, IDENT_PARAMS};
+	enum TYPE
+	{
+		IDENT,
+		IDENT_PARAMS
+	};
 	TYPE type;
 	std::unique_ptr<BaseAST> primary_exp;
 	std::unique_ptr<BaseAST> unary_op;
@@ -796,11 +814,11 @@ public:
 			}
 		}
 		// function call
-		else if(type == IDENT)
+		else if (type == IDENT)
 		{
 			std::cout << "\t";
 			// 有返回值
-			if(st_head->table[ident].value == 1)
+			if (st_head->table[ident].value == 1)
 			{
 				std::cout << "%" << reg_cnt << " = ";
 				reg_cnt++;
@@ -810,16 +828,16 @@ public:
 			std::cout << "(";
 			std::cout << ")\n";
 
-			if(st_head->table[ident].value == 1)
+			if (st_head->table[ident].value == 1)
 			{
 				return "%" + std::to_string(reg_cnt - 1);
 			}
 		}
-		else if(type == IDENT_PARAMS)
+		else if (type == IDENT_PARAMS)
 		{
 			std::cout << "\t";
 			// 有返回值
-			if(st_head->table[ident].value == 1)
+			if (st_head->table[ident].value == 1)
 			{
 				std::cout << "%" << reg_cnt << " = ";
 				reg_cnt++;
@@ -829,9 +847,9 @@ public:
 			std::cout << "(";
 
 			// 参数
-			for(int i = 0;i < func_r_params.size();i++)
+			for (int i = 0; i < func_r_params.size(); i++)
 			{
-				if(i == 0)
+				if (i == 0)
 				{
 					std::cout << func_r_params[i]->getValue();
 				}
@@ -843,7 +861,7 @@ public:
 
 			std::cout << ")\n";
 
-			if(st_head->table[ident].value == 1)
+			if (st_head->table[ident].value == 1)
 			{
 				return "%" + std::to_string(reg_cnt - 1);
 			}
@@ -1302,15 +1320,15 @@ public:
 	}
 };
 
-class BTypeAST : public BaseAST
-{
-public:
-	std::string btype;
-	std::string Dump() const override
-	{
-		return btype;
-	}
-};
+// class BTypeAST : public BaseAST
+// {
+// public:
+// 	std::string btype;
+// 	std::string Dump() const override
+// 	{
+// 		return btype;
+// 	}
+// };
 
 class ConstDefAST : public BaseAST
 {
@@ -1329,7 +1347,7 @@ public:
 		VALUE tmp;
 		tmp.tag = VALUE::CONST;
 		tmp.value = const_init_val->getValue();
-		auto& symbol_table = st_cur->table;
+		auto &symbol_table = st_cur->table;
 		symbol_table[ident] = tmp;
 	}
 };
@@ -1473,25 +1491,55 @@ public:
 	{
 		if (type == IDENT)
 		{
-			VALUE v;
-			v.tag = VALUE::VAR;
-			auto& symbol_table = st_cur->table;
-			symbol_table[ident] = v;
+			if (st_cur == st_head)
+			{
+				// 全局变量
+				VALUE v;
+				v.tag = VALUE::VAR;
+				auto &symbol_table = st_cur->table;
+				symbol_table[ident] = v;
 
-			std::cout << "\t@" << ident << "_" << st_cur->tag << "= alloc i32\n";
+				std::cout << "global @" << ident << "_" << st_cur->tag << "= alloc i32, zeroinit\n";
+				std::cout << "\n";
+			}
+			else
+			{
+				VALUE v;
+				v.tag = VALUE::VAR;
+				auto &symbol_table = st_cur->table;
+				symbol_table[ident] = v;
+
+				std::cout << "\t@" << ident << "_" << st_cur->tag << "= alloc i32\n";
+			}
 		}
 		else if (type == INIT)
 		{
-			VALUE v;
-			v.tag = VALUE::VAR;
-			v.value = init_val->getValue();
-			auto& symbol_table = st_cur->table;
-			symbol_table[ident] = v;
+			if (st_cur == st_head)
+			{
+				// 全局变量
+				VALUE v;
+				v.tag = VALUE::VAR;
+				v.value = init_val->getValue();
+				auto &symbol_table = st_cur->table;
+				symbol_table[ident] = v;
 
-			// 初始化变量的时候, 若右边表达式含变量, 也是直接像常量一样求值吗, 还是当作表达式?
-			// 这里先按常量求值处理
-			std::cout << "\t@" << ident << "_" << st_cur->tag << "= alloc i32\n";
-			std::cout << "\tstore " << v.value << " , @" << ident << "_" << st_cur->tag << std::endl;
+				std::cout << "global @" << ident << "_" << st_cur->tag << "= alloc i32, " << v.value << std::endl;
+				//std::cout << "store " << v.value << " , @" << ident << "_" << st_cur->tag << std::endl;
+				std::cout << "\n";
+			}
+			else
+			{
+				VALUE v;
+				v.tag = VALUE::VAR;
+				v.value = init_val->getValue();
+				auto &symbol_table = st_cur->table;
+				symbol_table[ident] = v;
+
+				// 初始化变量的时候, 若右边表达式含变量, 也是直接像常量一样求值吗, 还是当作表达式?
+				// 这里先按常量求值处理
+				std::cout << "\t@" << ident << "_" << st_cur->tag << "= alloc i32\n";
+				std::cout << "\tstore " << v.value << " , @" << ident << "_" << st_cur->tag << std::endl;
+			}
 		}
 
 		return std::string();

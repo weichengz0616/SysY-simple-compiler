@@ -38,7 +38,7 @@ std::string visit(const koopa_raw_integer_t &integer);
 int32_t visit(const koopa_raw_binary_t &binary);
 int32_t visit(const koopa_raw_load_t &load);
 void visit(const koopa_raw_store_t &store);
-int32_t visit(const koopa_raw_global_alloc_t &alloc);
+int32_t visit(const koopa_raw_global_alloc_t &alloc, const int &type);
 void visit(const koopa_raw_branch_t &branch);
 void visit(const koopa_raw_jump_t &jump);
 int32_t visit(const koopa_raw_call_t &call);
@@ -100,9 +100,9 @@ void visit(const koopa_raw_slice_t &slice)
 void visit(const koopa_raw_function_t &func)
 {
     // 跳过函数声明
-    if(func->bbs.len == 0)
+    if (func->bbs.len == 0)
         return;
-    
+
     func_now = std::string(func->name);
     // 计算栈帧大小
     // 遍历函数的所有指令
@@ -232,7 +232,7 @@ void visit(const koopa_raw_value_t &value)
         std::cout << std::endl;
         break;
     case KOOPA_RVT_ALLOC:
-        rv2offset[value] = visit(kind.data.global_alloc);
+        rv2offset[value] = visit(kind.data.global_alloc, 0);
         break;
     case KOOPA_RVT_BRANCH:
         visit(kind.data.branch);
@@ -246,9 +246,15 @@ void visit(const koopa_raw_value_t &value)
         rv2offset[value] = visit(kind.data.call);
         std::cout << std::endl;
         break;
+    case KOOPA_RVT_GLOBAL_ALLOC:
+        std::cout << "\t.data\n";
+        std::cout << "\t.global " << value->name + 1 << std::endl;
+        std::cout << value->name + 1 << ":\n";
+        visit(kind.data.global_alloc, 1);
+        break;
     default:
         // 其他类型暂时遇不到
-        printf("%d\n", kind.tag);
+        printf("raw value type: %d\n", kind.tag);
         assert(false);
     }
 }
@@ -268,6 +274,13 @@ void visit(const koopa_raw_return_t &ret)
         else
         {
             // assert(ret_value->kind.tag == KOOPA_RVT_BINARY);
+            if (ret_value->kind.tag == KOOPA_RVT_GLOBAL_ALLOC)
+            {
+                // 读取的是全局变量
+                std::cout << "\tla t0, " << ret_value->name + 1 << std::endl;
+                std::cout << "\tlw a0, 0(t0)\n";
+                return;
+            }
             assert(rv2offset.find(ret_value) != rv2offset.end());
             int32_t offset = rv2offset[ret_value];
             if (offset < 2048)
@@ -327,9 +340,17 @@ int32_t visit(const koopa_raw_binary_t &binary)
         std::cout << "\tli t0, " << binary.lhs->kind.data.integer.value << std::endl;
         lhs_reg = "t0";
     }
+    else if (binary.lhs->kind.tag == KOOPA_RVT_GLOBAL_ALLOC)
+    {
+        // 读取的是全局变量
+        std::cout << "\tla t0, " << binary.lhs->name + 1 << std::endl;
+        std::cout << "\tlw t0, 0(t0)\n";
+        lhs_reg = "t0";
+    }
     else
     {
         // lhs_reg = rv2reg[binary.lhs];
+
         int32_t offset = rv2offset[binary.lhs];
         if (offset < 2048)
             std::cout << "\tlw t0, " << offset << "(sp)\n";
@@ -339,6 +360,7 @@ int32_t visit(const koopa_raw_binary_t &binary)
             std::cout << "\tadd t0, t0, sp\n";
             std::cout << "\tlw t0, 0(t0)\n";
         }
+
         lhs_reg = "t0";
     }
     if (binary.rhs->kind.tag == KOOPA_RVT_INTEGER)
@@ -347,6 +369,13 @@ int32_t visit(const koopa_raw_binary_t &binary)
         // rhs_reg = rv2reg[binary.rhs];
         std::cout << "\tli t1, " << binary.rhs->kind.data.integer.value << std::endl;
         rhs_reg = "t1";
+    }
+    else if (binary.rhs->kind.tag == KOOPA_RVT_GLOBAL_ALLOC)
+    {
+        // 读取的是全局变量
+        std::cout << "\tla t0, " << binary.rhs->name + 1 << std::endl;
+        std::cout << "\tlw t1, 0(t0)\n";
+        lhs_reg = "t1";
     }
     else
     {
@@ -434,16 +463,24 @@ int32_t visit(const koopa_raw_binary_t &binary)
 
 int32_t visit(const koopa_raw_load_t &load)
 {
-    // 这里的src我猜应该是指向首条alloc指令??
-    assert(rv2offset.find(load.src) != rv2offset.end());
-    int32_t offset = rv2offset[load.src];
-    if (offset < 2048)
-        std::cout << "\tlw t0, " << offset << "(sp)\n";
+    if (load.src->kind.tag == KOOPA_RVT_GLOBAL_ALLOC)
+    {
+        std::cout << "\tla t0, " << load.src->name + 1 << std::endl;
+        std::cout << "\tlw t0, 0(t0)\n";
+    }
     else
     {
-        std::cout << "\tli, t0, " << offset << std::endl;
-        std::cout << "\tadd t0, t0, sp\n";
-        std::cout << "\tlw t0, 0(t0)\n";
+        // 这里的src我猜应该是指向首条alloc指令??
+        assert(rv2offset.find(load.src) != rv2offset.end());
+        int32_t offset = rv2offset[load.src];
+        if (offset < 2048)
+            std::cout << "\tlw t0, " << offset << "(sp)\n";
+        else
+        {
+            std::cout << "\tli, t0, " << offset << std::endl;
+            std::cout << "\tadd t0, t0, sp\n";
+            std::cout << "\tlw t0, 0(t0)\n";
+        }
     }
 
     if (sp_offset < 2048)
@@ -460,12 +497,31 @@ int32_t visit(const koopa_raw_load_t &load)
 
 void visit(const koopa_raw_store_t &store)
 {
+    // store语句只会出现在:
+    // 1.变量初始化为数字面量/单个变量 => IR会直接替换成数值
+    // 2.变量初始化为表达式
+    // 3.函数参数
+    // 因此全局变量不会出现在左侧
+    // 但可能出现在右侧吗?????????
+    // eg. var = 1; ===> 即对全局变量的赋值操作 是可能的 ====> 即store.dest
+
+    // 现在正在处理的是全局变量使用.....store阶段.
+
     // std::cout << "==== store " << store.value->kind.tag << std::endl;
     if (store.value->kind.tag == KOOPA_RVT_INTEGER)
     {
         // store 一个数值
-        int32_t offset_dest = rv2offset[store.dest];
         std::cout << "\tli t0, " << store.value->kind.data.integer.value << std::endl;
+
+        if (store.dest->kind.tag == KOOPA_RVT_GLOBAL_ALLOC)
+        {
+            std::cout << "\tla t1, " << store.dest->name + 1 << std::endl;
+            std::cout << "\tsw t0, 0(t1)\n";
+
+            return;
+        }
+
+        int32_t offset_dest = rv2offset[store.dest];
         if (offset_dest < 2048)
             std::cout << "\tsw t0, " << offset_dest << "(sp)\n";
         else
@@ -479,9 +535,17 @@ void visit(const koopa_raw_store_t &store)
     else if (store.value->kind.tag == KOOPA_RVT_FUNC_ARG_REF)
     {
         // 直接从函数参数处取
+        std::string reg = visit(store.value->kind.data.func_arg_ref);
+
+        if (store.dest->kind.tag == KOOPA_RVT_GLOBAL_ALLOC)
+        {
+            std::cout << "\tla t1, " << store.dest->name + 1 << std::endl;
+            std::cout << "\tsw " << reg << ", 0(t1)\n";
+
+            return;
+        }
 
         int32_t offset_dest = rv2offset[store.dest];
-        std::string reg = visit(store.value->kind.data.func_arg_ref);
         if (offset_dest < 2048)
             std::cout << "\tsw " << reg << ", " << offset_dest << "(sp)\n";
         else
@@ -496,7 +560,6 @@ void visit(const koopa_raw_store_t &store)
 
     // 从普通表达式取
     int32_t offset_value = rv2offset[store.value];
-    int32_t offset_dest = rv2offset[store.dest];
     if (offset_value < 2048)
         std::cout << "\tlw t0, " << offset_value << "(sp)\n";
     else
@@ -506,6 +569,15 @@ void visit(const koopa_raw_store_t &store)
         std::cout << "\tlw t0, 0(t0)\n";
     }
 
+    if (store.dest->kind.tag == KOOPA_RVT_GLOBAL_ALLOC)
+    {
+        std::cout << "\tla t1, " << store.dest->name + 1 << std::endl;
+        std::cout << "\tsw t0, 0(t1)\n";
+
+        return;
+    }
+
+    int32_t offset_dest = rv2offset[store.dest];
     if (offset_dest < 2048)
         std::cout << "\tsw t0, " << offset_dest << "(sp)\n";
     else
@@ -516,11 +588,38 @@ void visit(const koopa_raw_store_t &store)
     }
 }
 
-int32_t visit(const koopa_raw_global_alloc_t &alloc)
+int32_t visit(const koopa_raw_global_alloc_t &alloc, const int &type)
 {
     // assert(sp_offset <= 2048);
-    sp_offset += 4;
-    return sp_offset - 4;
+    if (type == 0)
+    {
+        // 这里规定type==0表示局部变量alloc
+        // 返回的是栈偏移
+        sp_offset += 4;
+        return sp_offset - 4;
+    }
+    else if (type == 1)
+    {
+        // type==1 表示全局变量alloc
+        if (alloc.init->kind.tag == KOOPA_RVT_ZERO_INIT)
+        {
+            std::cout << "\t.zero 4\n";
+        }
+        else if (alloc.init->kind.tag == KOOPA_RVT_INTEGER)
+        {
+            std::cout << "\t.word " << alloc.init->kind.data.integer.value << std::endl;
+        }
+        else
+        {
+            printf("global alloc init tag: %d\n", alloc.init->kind.tag);
+            assert(false);
+        }
+        return -1;
+    }
+    else
+    {
+        assert(false);
+    }
 }
 
 void visit(const koopa_raw_branch_t &branch)
@@ -574,9 +673,9 @@ int32_t visit(const koopa_raw_call_t &call)
     std::cout << "\tcall " << call.callee->name + 1 << std::endl;
 
     assert(func_ret.find(std::string(call.callee->name)) != func_ret.end());
-    if(func_ret[std::string(call.callee->name)])
+    if (func_ret[std::string(call.callee->name)])
     {
-        //std::cout << "call return\n";
+        // std::cout << "call return\n";
         std::cout << "\tsw a0, " << sp_offset << "(sp)";
 
         sp_offset += 4;
@@ -584,7 +683,7 @@ int32_t visit(const koopa_raw_call_t &call)
     }
     else
     {
-        //std::cout << "call no return\n";
+        // std::cout << "call no return\n";
     }
 
     return -1;
