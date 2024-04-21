@@ -137,7 +137,7 @@ void visit(const koopa_raw_function_t &func)
         std::cout << "\tsw ra, " << stack_frame_size - 4 << "(sp)\n";
     else
     {
-        std::cout << "\tli, t1, " << stack_frame_size - 4 << std::endl;
+        std::cout << "\tli t1, " << stack_frame_size - 4 << std::endl;
         std::cout << "\tadd t1, t1, sp\n";
         std::cout << "\tsw ra, 0(t1)\n";
     }
@@ -154,7 +154,7 @@ void visit(const koopa_raw_function_t &func)
     //     }
     //     else
     //     {
-    //         std::cout << "\tli, t1, " << stack_frame_size + (i - 8) * 4 << std::endl;
+    //         std::cout << "\tli t1, " << stack_frame_size + (i - 8) * 4 << std::endl;
     //         std::cout << "\tadd t1, t1, sp\n";
     //         std::cout << "\tlw t0, 0(t1)\n";
     //         std::cout << "\tsw t0, " << i * 4 << "(sp)\n";
@@ -195,7 +195,9 @@ void visit(const koopa_raw_basic_block_t &bb)
 {
     // 执行一些其他的必要操作
     // ...
-    std::cout << bb->name + 1 << ":" << std::endl;
+    // 丑陋的写法
+    if(std::string(bb->name + 1) != "entry")
+        std::cout << bb->name + 1 << ":" << std::endl;
     // 访问所有指令
     visit(bb->insts);
 }
@@ -287,7 +289,7 @@ void visit(const koopa_raw_return_t &ret)
                 std::cout << "\tlw a0, " << offset << "(sp)\n";
             else
             {
-                std::cout << "\tli, t0, " << offset << std::endl;
+                std::cout << "\tli t0, " << offset << std::endl;
                 std::cout << "\tadd t0, t0, sp\n";
                 std::cout << "\tlw a0, 0(t0)\n";
             }
@@ -305,7 +307,7 @@ void visit(const koopa_raw_return_t &ret)
         std::cout << "\tlw ra, " << stack_frame_size - 4 << "(sp)\n";
     else
     {
-        std::cout << "\tli, t1, " << stack_frame_size - 4 << std::endl;
+        std::cout << "\tli t1, " << stack_frame_size - 4 << std::endl;
         std::cout << "\tadd t1, t1, sp\n";
         std::cout << "\tlw ra, 0(t1)\n";
     }
@@ -356,7 +358,7 @@ int32_t visit(const koopa_raw_binary_t &binary)
             std::cout << "\tlw t0, " << offset << "(sp)\n";
         else
         {
-            std::cout << "\tli, t0, " << offset << std::endl;
+            std::cout << "\tli t0, " << offset << std::endl;
             std::cout << "\tadd t0, t0, sp\n";
             std::cout << "\tlw t0, 0(t0)\n";
         }
@@ -385,7 +387,7 @@ int32_t visit(const koopa_raw_binary_t &binary)
             std::cout << "\tlw t1, " << offset << "(sp)\n";
         else
         {
-            std::cout << "\tli, t0, " << offset << std::endl;
+            std::cout << "\tli t0, " << offset << std::endl;
             std::cout << "\tadd t0, t0, sp\n";
             std::cout << "\tlw t1, 0(t0)\n";
         }
@@ -453,7 +455,7 @@ int32_t visit(const koopa_raw_binary_t &binary)
         std::cout << "\tsw t0, " << sp_offset << "(sp)\n";
     else
     {
-        std::cout << "\tli, t1, " << sp_offset << std::endl;
+        std::cout << "\tli t1, " << sp_offset << std::endl;
         std::cout << "\tadd t1, t1, sp\n";
         std::cout << "\tsw t0, 0(t1)\n";
     }
@@ -477,7 +479,7 @@ int32_t visit(const koopa_raw_load_t &load)
             std::cout << "\tlw t0, " << offset << "(sp)\n";
         else
         {
-            std::cout << "\tli, t0, " << offset << std::endl;
+            std::cout << "\tli t0, " << offset << std::endl;
             std::cout << "\tadd t0, t0, sp\n";
             std::cout << "\tlw t0, 0(t0)\n";
         }
@@ -487,7 +489,7 @@ int32_t visit(const koopa_raw_load_t &load)
         std::cout << "\tsw t0, " << sp_offset << "(sp)\n";
     else
     {
-        std::cout << "\tli, t1, " << sp_offset << std::endl;
+        std::cout << "\tli t1, " << sp_offset << std::endl;
         std::cout << "\tadd t1, t1, sp\n";
         std::cout << "\tsw t0, 0(t1)\n";
     }
@@ -526,7 +528,7 @@ void visit(const koopa_raw_store_t &store)
             std::cout << "\tsw t0, " << offset_dest << "(sp)\n";
         else
         {
-            std::cout << "\tli, t1, " << offset_dest << std::endl;
+            std::cout << "\tli t1, " << offset_dest << std::endl;
             std::cout << "\tadd t1, t1, sp\n";
             std::cout << "\tsw t0, 0(t1)\n";
         }
@@ -550,7 +552,7 @@ void visit(const koopa_raw_store_t &store)
             std::cout << "\tsw " << reg << ", " << offset_dest << "(sp)\n";
         else
         {
-            std::cout << "\tli, t1, " << offset_dest << std::endl;
+            std::cout << "\tli t1, " << offset_dest << std::endl;
             std::cout << "\tadd t1, t1, sp\n";
             std::cout << "\tsw " << reg << ", 0(t1)\n";
         }
@@ -564,7 +566,7 @@ void visit(const koopa_raw_store_t &store)
         std::cout << "\tlw t0, " << offset_value << "(sp)\n";
     else
     {
-        std::cout << "\tli, t0, " << offset_value << std::endl;
+        std::cout << "\tli t0, " << offset_value << std::endl;
         std::cout << "\tadd t0, t0, sp\n";
         std::cout << "\tlw t0, 0(t0)\n";
     }
@@ -582,7 +584,7 @@ void visit(const koopa_raw_store_t &store)
         std::cout << "\tsw t0, " << offset_dest << "(sp)\n";
     else
     {
-        std::cout << "\tli, t1, " << offset_dest << std::endl;
+        std::cout << "\tli t1, " << offset_dest << std::endl;
         std::cout << "\tadd t1, t1, sp\n";
         std::cout << "\tsw t0, 0(t1)\n";
     }
@@ -636,7 +638,7 @@ void visit(const koopa_raw_branch_t &branch)
             std::cout << "\tlw t0, " << offset << "(sp)\n";
         else
         {
-            std::cout << "\tli, t0, " << offset << std::endl;
+            std::cout << "\tli t0, " << offset << std::endl;
             std::cout << "\tadd t0, t0, sp\n";
             std::cout << "\tlw t0, 0(t0)\n";
         }
@@ -700,7 +702,7 @@ std::string visit(const koopa_raw_func_arg_ref_t &func_arg)
     }
     else
     {
-        std::cout << "\tli, t1, " << stack_frame_size + (index - 8) * 4 << std::endl;
+        std::cout << "\tli t1, " << stack_frame_size + (index - 8) * 4 << std::endl;
         std::cout << "\tadd t1, t1, sp\n";
         std::cout << "\tlw t0, 0(t1)\n";
         reg = "t0";

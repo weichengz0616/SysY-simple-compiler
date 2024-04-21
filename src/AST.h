@@ -78,7 +78,7 @@ public:
 	virtual std::string Dump() const = 0;
 	// 给各种表达式求值用
 	// 非纯的虚函数必须有定义, 否则链接报错
-	virtual int32_t getValue() const { return 0; }
+	virtual int32_t getValue() const { assert(false); return 0; }
 
 	// 求stmt的最后一句是不是return语句
 	// virtual bool lastReturn() const { return false; }
@@ -609,7 +609,7 @@ public:
 			std::string exp_string = exp->Dump();
 			// 此时lval必定是变量, 否则是语义错误
 			std::string lval_string = lval->Dump();
-			int32_t new_value = exp->getValue();
+			//int32_t new_value = exp->getValue();
 
 			auto st_tmp = st_cur;
 			while (st_tmp->table.find(lval_string) == st_tmp->table.end())
@@ -618,7 +618,7 @@ public:
 			}
 			auto &symbol_table = st_tmp->table;
 			assert(symbol_table.find(lval_string) != symbol_table.end());
-			symbol_table[lval_string].value = new_value;
+			//symbol_table[lval_string].value = new_value;
 			std::cout << "\tstore " << exp_string << " , @" << lval_string << "_" << st_tmp->tag << std::endl;
 		}
 		else if (type == ZERO_EXP)
@@ -835,6 +835,12 @@ public:
 		}
 		else if (type == IDENT_PARAMS)
 		{
+			std::vector<std::string> args;
+			for (int i = 0; i < func_r_params.size(); i++)
+			{
+				args.push_back(func_r_params[i]->Dump());
+			}
+
 			std::cout << "\t";
 			// 有返回值
 			if (st_head->table[ident].value == 1)
@@ -847,15 +853,15 @@ public:
 			std::cout << "(";
 
 			// 参数
-			for (int i = 0; i < func_r_params.size(); i++)
+			for (int i = 0; i < args.size(); i++)
 			{
 				if (i == 0)
 				{
-					std::cout << func_r_params[i]->getValue();
+					std::cout << args[i];
 				}
 				else
 				{
-					std::cout << ", " << func_r_params[i]->getValue();
+					std::cout << ", " << args[i];
 				}
 			}
 
@@ -890,6 +896,11 @@ public:
 			{
 				return unary_exp->getValue();
 			}
+		}
+		else
+		{
+			printf("should call function...\n");
+			assert(false);
 		}
 		return 0;
 	}
@@ -1514,9 +1525,11 @@ public:
 		}
 		else if (type == INIT)
 		{
+			//std::cout << "var decl init dumping...\n";
 			if (st_cur == st_head)
 			{
 				// 全局变量
+				// ????? 问题是全局变量的声明, 能含 非常量 表达式吗
 				VALUE v;
 				v.tag = VALUE::VAR;
 				v.value = init_val->getValue();
@@ -1524,6 +1537,7 @@ public:
 				symbol_table[ident] = v;
 
 				std::cout << "global @" << ident << "_" << st_cur->tag << "= alloc i32, " << v.value << std::endl;
+				//std::string init_value = init_val->Dump();
 				//std::cout << "store " << v.value << " , @" << ident << "_" << st_cur->tag << std::endl;
 				std::cout << "\n";
 			}
@@ -1531,14 +1545,19 @@ public:
 			{
 				VALUE v;
 				v.tag = VALUE::VAR;
-				v.value = init_val->getValue();
+				// v.value = init_val->getValue();
 				auto &symbol_table = st_cur->table;
 				symbol_table[ident] = v;
 
 				// 初始化变量的时候, 若右边表达式含变量, 也是直接像常量一样求值吗, 还是当作表达式?
 				// 这里先按常量求值处理
+				// lv8 函数之后这里不能直接当常量处理, 而应该翻译成表达式!!!!
+				// 注意了, SYSY中的所有常量decl时必须能够编译时求值, 变量的decl不用
+				// 不能把含变量/函数调用的表达式赋值给常量
+				// 那么全局变量呢???? 全局变量的声明初始值可以给诸如变量和函数表达式吗????
 				std::cout << "\t@" << ident << "_" << st_cur->tag << "= alloc i32\n";
-				std::cout << "\tstore " << v.value << " , @" << ident << "_" << st_cur->tag << std::endl;
+				std::string init_value = init_val->Dump();
+				std::cout << "\tstore " << init_value << " , @" << ident << "_" << st_cur->tag << std::endl;
 			}
 		}
 
@@ -1553,7 +1572,7 @@ public:
 
 	std::string Dump() const override
 	{
-		return std::string();
+		return exp->Dump();
 	}
 
 	int32_t getValue() const override

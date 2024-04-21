@@ -239,13 +239,62 @@
 //   return var;
 // }
 
-int var;
+// int var;
 
-const int one = 1;
+// const int one = 1;
+
+// int main() {
+//   return var + one;
+// }
+
+// int sum(int a0, int a1, int a2, int a3, int a4, int a5, int a6, int a7) {
+//   return a0 + a1 + a2 + a3 + a4 + a5 + a6 + a7;
+// }
+
+// int sum2(int a0, int a1, int a2, int a3, int a4, int a5, int a6, int a7, int a8) {
+//   return a0 + a1 + a2 + a3 + a4 + a5 + a6 + a7 + a8;
+// }
+
+// int main() {
+//   //int x = sum(1, 2, 3, 4, 5, 6, 7, 8);
+//   int y = sum2(1, 2, 3, 4, 5, 6, 7, 8, 9);
+//   ;
+//   return y;
+//   // return sum2(1, 2, 3, 4, 5, 6, 7, 8, 9);
+// }
+
+// int add(int a, int b) {
+//   return a + b;
+// }
+
+// int sub(int a, int b) {
+//   return a - b;
+// }
+
+// int mul(int a, int b) {
+//   return a * b;
+// }
+
+// int div(int a, int b) {
+//   return a / b;
+// }
+
+// int main() {
+//   //int x = add(111,222);
+//   int x = add(sub(333,444), 555);
+//   //int x = add(sub(1, 2), mul(3, div(4, 5)));
+//   // int y = add(1 || 0, 0 && sub(1, x) || mul(3, div(x || add(1, 2) > 10, 5)));
+//   return x;
+// }
+
+int add(int a, int b) {
+  return a + b;
+}
 
 int main() {
-  return var + one;
+  return add(1, 2);
 }
+
 
 
 

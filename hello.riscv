@@ -1,7 +1,3 @@
-	.data
-	.global var_0
-var_0:
-	.zero 4
 
 
 
@@ -11,23 +7,46 @@ var_0:
 
 
 	.text
+	.globl add
+add:
+	li t0, -16
+	add sp, sp, t0
+
+	sw ra, 12(sp)
+	sw a0, 0(sp)
+
+	sw a1, 4(sp)
+
+	lw t0, 0(sp)
+	sw t0, 8(sp)
+
+	lw t0, 4(sp)
+	sw t0, 12(sp)
+
+	lw t0, 8(sp)
+	lw t1, 12(sp)
+	add t0, t0, t1
+	sw t0, 16(sp)
+
+	lw a0, 16(sp)
+	lw ra, 12(sp)
+	li t0, 16
+	add sp, sp, t0
+	ret
+
+
+	.text
 	.globl main
 main:
 	li t0, -16
 	add sp, sp, t0
 
 	sw ra, 12(sp)
-entry:
-	la t0, var_0
-	lw t0, 0(t0)
-	sw t0, 0(sp)
-
-	lw t0, 0(sp)
-	li t1, 1
-	add t0, t0, t1
-	sw t0, 4(sp)
-
-	lw a0, 4(sp)
+	li a0, 1
+	li a1, 2
+	call add
+	sw a0, 0(sp)
+	lw a0, 0(sp)
 	lw ra, 12(sp)
 	li t0, 16
 	add sp, sp, t0
