@@ -263,37 +263,35 @@
 //   // return sum2(1, 2, 3, 4, 5, 6, 7, 8, 9);
 // }
 
-// int add(int a, int b) {
-//   return a + b;
-// }
-
-// int sub(int a, int b) {
-//   return a - b;
-// }
-
-// int mul(int a, int b) {
-//   return a * b;
-// }
-
-// int div(int a, int b) {
-//   return a / b;
-// }
-
-// int main() {
-//   //int x = add(111,222);
-//   int x = add(sub(333,444), 555);
-//   //int x = add(sub(1, 2), mul(3, div(4, 5)));
-//   // int y = add(1 || 0, 0 && sub(1, x) || mul(3, div(x || add(1, 2) > 10, 5)));
-//   return x;
-// }
-
 int add(int a, int b) {
   return a + b;
 }
 
-int main() {
-  return add(1, 2);
+int sub(int a, int b) {
+  return a - b;
 }
+
+int mul(int a, int b) {
+  return a * b;
+}
+
+int div(int a, int b) {
+  return a / b;
+}
+
+int main() {
+  int x = add(sub(1, 2), mul(3, div(4, 5)));
+  int y = add(1 || 0, 0 && sub(1, x) || mul(3, div(x || add(1, 2) > 10, 5)));
+  return x + y;
+}
+
+// int add(int a, int b) {
+//   return a + b;
+// }
+
+// int main() {
+//   return add(1, 2);
+// }
 
 
 

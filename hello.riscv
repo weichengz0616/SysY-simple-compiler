@@ -9,10 +9,10 @@
 	.text
 	.globl add
 add:
-	li t0, -16
+	li t0, -32
 	add sp, sp, t0
 
-	sw ra, 12(sp)
+	sw ra, 28(sp)
 	sw a0, 0(sp)
 
 	sw a1, 4(sp)
@@ -29,8 +29,95 @@ add:
 	sw t0, 16(sp)
 
 	lw a0, 16(sp)
-	lw ra, 12(sp)
-	li t0, 16
+	lw ra, 28(sp)
+	li t0, 32
+	add sp, sp, t0
+	ret
+
+
+	.text
+	.globl sub
+sub:
+	li t0, -32
+	add sp, sp, t0
+
+	sw ra, 28(sp)
+	sw a0, 0(sp)
+
+	sw a1, 4(sp)
+
+	lw t0, 0(sp)
+	sw t0, 8(sp)
+
+	lw t0, 4(sp)
+	sw t0, 12(sp)
+
+	lw t0, 8(sp)
+	lw t1, 12(sp)
+	sub t0, t0, t1
+	sw t0, 16(sp)
+
+	lw a0, 16(sp)
+	lw ra, 28(sp)
+	li t0, 32
+	add sp, sp, t0
+	ret
+
+
+	.text
+	.globl mul
+mul:
+	li t0, -32
+	add sp, sp, t0
+
+	sw ra, 28(sp)
+	sw a0, 0(sp)
+
+	sw a1, 4(sp)
+
+	lw t0, 4(sp)
+	sw t0, 8(sp)
+
+	lw t0, 0(sp)
+	sw t0, 12(sp)
+
+	lw t0, 12(sp)
+	lw t1, 8(sp)
+	mul t0, t0, t1
+	sw t0, 16(sp)
+
+	lw a0, 16(sp)
+	lw ra, 28(sp)
+	li t0, 32
+	add sp, sp, t0
+	ret
+
+
+	.text
+	.globl div
+div:
+	li t0, -32
+	add sp, sp, t0
+
+	sw ra, 28(sp)
+	sw a0, 0(sp)
+
+	sw a1, 4(sp)
+
+	lw t0, 4(sp)
+	sw t0, 8(sp)
+
+	lw t0, 0(sp)
+	sw t0, 12(sp)
+
+	lw t0, 12(sp)
+	lw t1, 8(sp)
+	div t0, t0, t1
+	sw t0, 16(sp)
+
+	lw a0, 16(sp)
+	lw ra, 28(sp)
+	li t0, 32
 	add sp, sp, t0
 	ret
 
@@ -38,17 +125,169 @@ add:
 	.text
 	.globl main
 main:
-	li t0, -16
+	li t0, -128
 	add sp, sp, t0
 
-	sw ra, 12(sp)
+	sw ra, 124(sp)
+2 0
 	li a0, 1
+2 0
+	li a1, 2
+	call sub
+	sw a0, 4(sp)
+2 0
+	li a0, 4
+2 0
+	li a1, 5
+	call div
+	sw a0, 8(sp)
+2 0
+	li a0, 3
+2 15
+	lw t0, 8(sp)
+	mv a1, t0
+	call mul
+	sw a0, 12(sp)
+2 15
+	lw t0, 4(sp)
+	mv a0, t0
+2 15
+	lw t0, 12(sp)
+	mv a1, t0
+	call add
+	sw a0, 16(sp)
+	lw t0, 16(sp)
+	sw t0, 0(sp)
+
+	li t0, 1
+	li t1, 0
+	xor t0, t0, t1
+	snez t0, t0
+	sw t0, 24(sp)
+
+	li t0, 0
+	li t1, 0
+	xor t0, t0, t1
+	snez t0, t0
+	sw t0, 28(sp)
+
+	lw t0, 28(sp)
+	lw t1, 24(sp)
+	or t0, t0, t1
+	sw t0, 32(sp)
+
+	lw t0, 0(sp)
+	sw t0, 36(sp)
+
+2 0
+	li a0, 1
+2 8
+	call sub
+	sw a0, 40(sp)
+	li t0, 0
+	li t1, 0
+	xor t0, t0, t1
+	snez t0, t0
+	sw t0, 44(sp)
+
+	lw t0, 40(sp)
+	li t1, 0
+	xor t0, t0, t1
+	snez t0, t0
+	sw t0, 48(sp)
+
+	lw t0, 48(sp)
+	lw t1, 44(sp)
+	and t0, t0, t1
+	sw t0, 52(sp)
+
+	lw t0, 0(sp)
+	sw t0, 56(sp)
+
+2 0
+	li a0, 1
+2 0
 	li a1, 2
 	call add
-	sw a0, 0(sp)
-	lw a0, 0(sp)
-	lw ra, 12(sp)
-	li t0, 16
+	sw a0, 60(sp)
+	lw t0, 60(sp)
+	li t1, 10
+	slt t0, t1, t0
+	sw t0, 64(sp)
+
+	lw t0, 56(sp)
+	li t1, 0
+	xor t0, t0, t1
+	snez t0, t0
+	sw t0, 68(sp)
+
+	lw t0, 64(sp)
+	li t1, 0
+	xor t0, t0, t1
+	snez t0, t0
+	sw t0, 72(sp)
+
+	lw t0, 72(sp)
+	lw t1, 68(sp)
+	or t0, t0, t1
+	sw t0, 76(sp)
+
+2 12
+	lw t0, 76(sp)
+	mv a0, t0
+2 0
+	li a1, 5
+	call div
+	sw a0, 80(sp)
+2 0
+	li a0, 3
+2 15
+	lw t0, 80(sp)
+	mv a1, t0
+	call mul
+	sw a0, 84(sp)
+	lw t0, 52(sp)
+	li t1, 0
+	xor t0, t0, t1
+	snez t0, t0
+	sw t0, 88(sp)
+
+	lw t0, 84(sp)
+	li t1, 0
+	xor t0, t0, t1
+	snez t0, t0
+	sw t0, 92(sp)
+
+	lw t0, 92(sp)
+	lw t1, 88(sp)
+	or t0, t0, t1
+	sw t0, 96(sp)
+
+2 12
+	lw t0, 32(sp)
+	mv a0, t0
+2 12
+	lw t0, 96(sp)
+	mv a1, t0
+	call add
+	sw a0, 100(sp)
+	lw t0, 100(sp)
+	sw t0, 20(sp)
+
+	lw t0, 0(sp)
+	sw t0, 104(sp)
+
+	lw t0, 20(sp)
+	sw t0, 108(sp)
+
+	lw t0, 104(sp)
+	lw t1, 108(sp)
+	add t0, t0, t1
+	sw t0, 112(sp)
+
+	lw a0, 112(sp)
+	lw ra, 124(sp)
+	li t0, 128
 	add sp, sp, t0
 	ret
 

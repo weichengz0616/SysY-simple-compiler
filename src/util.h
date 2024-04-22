@@ -181,7 +181,8 @@ void getInstsFrameSize(int32_t &size, int32_t &max_args, const koopa_raw_slice_t
     for (size_t i = 0; i < insts.len; ++i)
     {
         auto ptr = reinterpret_cast<koopa_raw_value_t>(insts.buffer[i]);
-        if (ptr->ty->tag == KOOPA_RTT_INT32)
+        // std::cout << insts.len << " " << ptr->kind.tag << " " << ptr->ty->tag << std::endl;
+        if (ptr->ty->tag == KOOPA_RTT_INT32 || ptr->ty->tag == KOOPA_RTT_POINTER)
             size += 4; // 4 bytes
         if (ptr->kind.tag == KOOPA_RVT_CALL)
         {
@@ -196,7 +197,7 @@ void visit(const koopa_raw_basic_block_t &bb)
     // 执行一些其他的必要操作
     // ...
     // 丑陋的写法
-    if(std::string(bb->name + 1) != "entry")
+    if (std::string(bb->name + 1) != "entry")
         std::cout << bb->name + 1 << ":" << std::endl;
     // 访问所有指令
     visit(bb->insts);
@@ -654,31 +655,82 @@ void visit(const koopa_raw_jump_t &jump)
 
 int32_t visit(const koopa_raw_call_t &call)
 {
+    // 大bug
+    // 参数不一定是数值!!!
+    // 这跟前面一脉相承, 传参时可以传表达式/函数调用
+    // 0----integer  12----binary  15----call 8----load
     for (size_t i = 0; i < call.args.len; i++)
     {
+
+        auto arg = reinterpret_cast<koopa_raw_value_t>(call.args.buffer[i]);
+        // std::cout << call.args.len << " " << arg->kind.tag << std::endl;
         if (i < 8)
         {
-            std::cout << "\tli a" << i << ", "
-                      << reinterpret_cast<koopa_raw_value_t>(call.args.buffer[i])->kind.data.integer.value
-                      << std::endl;
+            if (arg->kind.tag == KOOPA_RVT_INTEGER)
+            {
+                std::cout << "\tli a" << i << ", " << arg->kind.data.integer.value << std::endl;
+            }
+            else
+            {
+                assert(rv2offset.find(arg) != rv2offset.end());
+                auto offset = rv2offset[arg];
+                if (offset < 2048)
+                {
+                    std::cout << "\tlw t0, " << offset << "(sp)\n";
+                }
+                else
+                {
+                    std::cout << "\tli t0, " << offset << std::endl;
+                    std::cout << "\tadd t0, t0, sp\n";
+                    std::cout << "\tlw t0, 0(t0)\n";
+                }
+
+                std::cout << "\tmv a" << i << ", t0\n";
+            }
         }
         else
         {
-            std::cout << "\tli t0"
-                      << reinterpret_cast<koopa_raw_value_t>(call.args.buffer[i])->kind.data.integer.value
-                      << std::endl;
+            if (arg->kind.tag == KOOPA_RVT_INTEGER)
+            {
+                std::cout << "\tli t0, " << arg->kind.data.integer.value << std::endl;
+                std::cout << "\tsw t0, " << (i - 8) * 4 << "(sp)\n";
+            }
+            else if (arg->kind.tag == KOOPA_RVT_BINARY)
+            {
+                assert(rv2offset.find(arg) != rv2offset.end());
+                auto offset = rv2offset[arg];
+                if (offset < 2048)
+                {
+                    std::cout << "\tlw t0, " << offset << "(sp)\n";
+                }
+                else
+                {
+                    std::cout << "\tli t0, " << offset << std::endl;
+                    std::cout << "\tadd t0, t0, sp\n";
+                    std::cout << "\tlw t0, 0(t0)\n";
+                }
 
-            std::cout << "\tsw t0, " << (i - 8) * 4 << "(sp)\n";
-            // sp_offset += 4;
+                std::cout << "\tsw t0, " << (i - 8) * 4 << "(sp)\n";
+            }
         }
     }
+
     std::cout << "\tcall " << call.callee->name + 1 << std::endl;
 
     assert(func_ret.find(std::string(call.callee->name)) != func_ret.end());
     if (func_ret[std::string(call.callee->name)])
     {
         // std::cout << "call return\n";
-        std::cout << "\tsw a0, " << sp_offset << "(sp)";
+        if (sp_offset < 2048)
+        {
+            std::cout << "\tsw a0, " << sp_offset << "(sp)";
+        }
+        else
+        {
+            std::cout << "\tli t0, " << sp_offset << std::endl;
+            std::cout << "\tadd t0, t0, sp\n";
+            std::cout << "\tsw a0, 0(t0)\n";
+        }
 
         sp_offset += 4;
         return sp_offset - 4;
