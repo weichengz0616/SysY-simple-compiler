@@ -7,6 +7,7 @@
 #include <vector>
 #include <unordered_map>
 #include <stack>
+#include <sstream>
 
 // 全局变量
 // 改成static能链接
@@ -36,7 +37,9 @@ struct VALUE
 	{
 		CONST,
 		VAR,
-		FUNCTION
+		FUNCTION,
+		CONST_ARRAY,
+		ARRAY
 	};
 	VALUE_TYPE tag;
 	int32_t value;
@@ -70,6 +73,14 @@ static int st_tag_cnt = 0;
 static std::stack<std::string> while_entry;
 static std::stack<std::string> while_end;
 
+
+
+
+
+
+class InitValAST;
+class ConstInitValAST;
+
 // 所有 AST 的基类
 class BaseAST
 {
@@ -78,7 +89,11 @@ public:
 	virtual std::string Dump() const = 0;
 	// 给各种表达式求值用
 	// 非纯的虚函数必须有定义, 否则链接报错
-	virtual int32_t getValue() const { assert(false); return 0; }
+	virtual int32_t getValue() const
+	{
+		assert(false);
+		return 0;
+	}
 
 	// 求stmt的最后一句是不是return语句
 	// virtual bool lastReturn() const { return false; }
@@ -608,18 +623,27 @@ public:
 			// std::cout << "stmt dump...lval\n";
 			std::string exp_string = exp->Dump();
 			// 此时lval必定是变量, 否则是语义错误
+			// lv9 lval还可能是数组变量, 此时应该写入地址
 			std::string lval_string = lval->Dump();
-			//int32_t new_value = exp->getValue();
+			// int32_t new_value = exp->getValue();
 
-			auto st_tmp = st_cur;
-			while (st_tmp->table.find(lval_string) == st_tmp->table.end())
+			if (lval_string[0] == '%')
 			{
-				st_tmp = st_tmp->prev;
+				// 数组
+				std::cout << "\tstore " << exp_string << " , " << lval_string << std::endl;
 			}
-			auto &symbol_table = st_tmp->table;
-			assert(symbol_table.find(lval_string) != symbol_table.end());
-			//symbol_table[lval_string].value = new_value;
-			std::cout << "\tstore " << exp_string << " , @" << lval_string << "_" << st_tmp->tag << std::endl;
+			else
+			{
+				auto st_tmp = st_cur;
+				while (st_tmp->table.find(lval_string) == st_tmp->table.end())
+				{
+					st_tmp = st_tmp->prev;
+				}
+				auto &symbol_table = st_tmp->table;
+				assert(symbol_table.find(lval_string) != symbol_table.end());
+				// symbol_table[lval_string].value = new_value;
+				std::cout << "\tstore " << exp_string << " , @" << lval_string << "_" << st_tmp->tag << std::endl;
+			}
 		}
 		else if (type == ZERO_EXP)
 		{
@@ -698,6 +722,13 @@ public:
 		{
 			// std::cout << " " << number << " ";
 			std::string ident = lval->Dump();
+			if (ident[0] == '%')
+			{
+				std::cout << "\t%" << reg_cnt << " = load %" << reg_cnt - 1 << std::endl;
+				reg_cnt++;
+				return "%" + std::to_string(reg_cnt - 1);
+			}
+
 			auto st_tmp = st_cur;
 			while (st_tmp->table.find(ident) == st_tmp->table.end())
 			{
@@ -1341,43 +1372,141 @@ public:
 // 	}
 // };
 
-class ConstDefAST : public BaseAST
-{
-public:
-	std::string ident;
-	std::unique_ptr<BaseAST> const_init_val;
-
-	std::string Dump() const override
-	{
-		updateSymbolTable();
-		return std::string();
-	}
-
-	void updateSymbolTable() const
-	{
-		VALUE tmp;
-		tmp.tag = VALUE::CONST;
-		tmp.value = const_init_val->getValue();
-		auto &symbol_table = st_cur->table;
-		symbol_table[ident] = tmp;
-	}
-};
-
 class ConstInitValAST : public BaseAST
 {
 public:
+	enum TYPE
+	{
+		EXP,
+		ZERO_ARRAY,
+		ARRAY
+	};
+	TYPE type;
 	std::unique_ptr<BaseAST> const_exp;
+	std::vector<std::unique_ptr<BaseAST>> const_exp_list;
 
 	std::string Dump() const override
 	{
+		assert(false);
 		return std::string();
 	}
 
 	int32_t getValue() const override
 	{
-		return const_exp->getValue();
+		if (type == EXP)
+			return const_exp->getValue();
+		assert(false);
+	}
+
+	std::vector<int32_t> getValueVector()
+	{
+		std::vector<int32_t> tmp;
+		for (auto &iter : const_exp_list)
+		{
+			tmp.push_back(iter->getValue());
+		}
+		return tmp;
 	}
 };
+
+class ConstDefAST : public BaseAST
+{
+public:
+	// 单变量 or 数组
+	enum TYPE
+	{
+		ONE,
+		ARRAY
+	};
+	TYPE type;
+	std::string ident;
+	std::unique_ptr<BaseAST> const_init_val;
+	std::unique_ptr<BaseAST> const_exp;
+
+	std::string Dump() const override
+	{
+		if (type == ONE)
+		{
+			VALUE tmp;
+			tmp.tag = VALUE::CONST;
+			tmp.value = const_init_val->getValue();
+			auto &symbol_table = st_cur->table;
+			symbol_table[ident] = tmp;
+		}
+		else if (type == ARRAY)
+		{
+			int array_size = const_exp->getValue();
+
+			if (st_cur == st_head)
+			{
+				std::vector<int32_t> init_vals = dynamic_cast<ConstInitValAST *>(const_init_val.get())->getValueVector();
+				std::string init_str = "{";
+				for (int i = 0; i < init_vals.size(); i++)
+				{
+					if (i == 0)
+					{
+						init_str += std::to_string(init_vals[i]);
+					}
+					else
+					{
+						init_str += ", " + std::to_string(init_vals[i]);
+					}
+				}
+				for (int i = 0; i < array_size - init_vals.size(); i++)
+				{
+					if(init_vals.size() == 0 && i == 0)
+						init_str += "0";
+					else
+						init_str += ", 0";
+				}
+				init_str += "}";
+
+				VALUE v;
+				v.tag = VALUE::CONST_ARRAY;
+				st_cur->table[ident] = v;
+
+				std::cout << "global @" << ident << "_" << st_cur->tag << " = alloc [i32, " << array_size << "]"
+						  << ", " << init_str << std::endl;
+				std::cout << std::endl;
+			}
+			else
+			{
+				std::vector<int32_t> init_vals = dynamic_cast<ConstInitValAST *>(const_init_val.get())->getValueVector();
+
+				VALUE v;
+				v.tag = VALUE::CONST_ARRAY;
+				st_cur->table[ident] = v;
+
+				std::cout << "\t@" << ident << "_" << st_cur->tag << " = alloc [i32, " << array_size << "]" << std::endl;
+
+				for (int i = 0; i < array_size; i++)
+				{
+					if (i < init_vals.size())
+					{
+						std::cout << "\t%" << reg_cnt << " = getelemptr @"
+								  << ident << "_" << st_cur->tag
+								  << ", " << i << std::endl;
+						reg_cnt++;
+
+						std::cout << "\tstore " << init_vals[i] << " , %" << reg_cnt - 1 << std::endl;
+					}
+					else
+					{
+						std::cout << "\t%" << reg_cnt << " = getelemptr @"
+								  << ident << "_" << st_cur->tag
+								  << ", " << i << std::endl;
+						reg_cnt++;
+
+						std::cout << "\tstore " << "0" << " , %" << reg_cnt - 1 << std::endl;
+					}
+				}
+			}
+		}
+
+		return std::string();
+	}
+};
+
 
 class BlockItemAST : public BaseAST
 {
@@ -1425,7 +1554,14 @@ public:
 class LValAST : public BaseAST
 {
 public:
+	enum TYPE
+	{
+		IDENT,
+		ARRAY
+	};
+	TYPE type;
 	std::string ident;
+	std::unique_ptr<BaseAST> exp;
 
 	std::string Dump() const override
 	{
@@ -1437,11 +1573,39 @@ public:
 		// else
 		// 	return ident;
 		// return std::string();
+
+		// lval 可能出现在两个地方, 这里的后续处理丢给后面的
+		// 1.表达式中
+		// 2.赋值语句左侧
+		if (type == IDENT)
+		{
+			return ident;
+		}
+		else if (type == ARRAY)
+		{
+			std::string index = exp->Dump();
+
+			auto st_tmp = st_cur;
+			while (st_tmp->table.find(ident) == st_tmp->table.end())
+			{
+				st_tmp = st_tmp->prev;
+			}
+			auto &symbol_table = st_tmp->table;
+			assert(symbol_table.find(ident) != symbol_table.end());
+
+			std::cout << "\t%" << reg_cnt << " = getelemptr @" << ident << "_" << st_tmp->tag << ", " << index << std::endl;
+			reg_cnt++;
+
+			return "%" + std::to_string(reg_cnt - 1);
+		}
+
+		assert(false);
 		return ident;
 	}
 
 	int32_t getValue() const override
 	{
+		assert(type == IDENT);
 		auto st_tmp = st_cur;
 		while (st_tmp->table.find(ident) == st_tmp->table.end())
 		{
@@ -1486,17 +1650,68 @@ public:
 	}
 };
 
+class InitValAST : public BaseAST
+{
+public:
+	enum TYPE
+	{
+		EXP,
+		ZERO_ARRAY,
+		ARRAY
+	};
+	TYPE type;
+	std::unique_ptr<BaseAST> exp;
+	std::vector<std::unique_ptr<BaseAST>> exp_list;
+
+	std::string Dump() const override
+	{
+		if (type == EXP)
+		{
+			return exp->Dump();
+		}
+		else
+		{
+			std::string tmp;
+			for (auto &iter : exp_list)
+			{
+				tmp += " " + iter->Dump();
+			}
+			return tmp;
+		}
+		return exp->Dump();
+	}
+
+	int32_t getValue() const override
+	{
+		assert(type == EXP);
+		return exp->getValue();
+	}
+
+	std::vector<int32_t> getValueVector()
+	{
+		std::vector<int32_t> tmp;
+		for (auto &iter : exp_list)
+		{
+			tmp.push_back(iter->getValue());
+		}
+		return tmp;
+	}
+};
+
 class VarDefAST : public BaseAST
 {
 public:
 	enum TYPE
 	{
 		IDENT,
-		INIT
+		INIT,
+		ARRAY,
+		ARRAY_INIT
 	};
 	TYPE type;
 	std::string ident;
 	std::unique_ptr<BaseAST> init_val;
+	std::unique_ptr<BaseAST> const_exp;
 
 	std::string Dump() const override
 	{
@@ -1510,7 +1725,7 @@ public:
 				auto &symbol_table = st_cur->table;
 				symbol_table[ident] = v;
 
-				std::cout << "global @" << ident << "_" << st_cur->tag << "= alloc i32, zeroinit\n";
+				std::cout << "global @" << ident << "_" << st_cur->tag << " = alloc i32, zeroinit\n";
 				std::cout << "\n";
 			}
 			else
@@ -1520,12 +1735,12 @@ public:
 				auto &symbol_table = st_cur->table;
 				symbol_table[ident] = v;
 
-				std::cout << "\t@" << ident << "_" << st_cur->tag << "= alloc i32\n";
+				std::cout << "\t@" << ident << "_" << st_cur->tag << " = alloc i32\n";
 			}
 		}
 		else if (type == INIT)
 		{
-			//std::cout << "var decl init dumping...\n";
+			// std::cout << "var decl init dumping...\n";
 			if (st_cur == st_head)
 			{
 				// 全局变量
@@ -1536,9 +1751,9 @@ public:
 				auto &symbol_table = st_cur->table;
 				symbol_table[ident] = v;
 
-				std::cout << "global @" << ident << "_" << st_cur->tag << "= alloc i32, " << v.value << std::endl;
-				//std::string init_value = init_val->Dump();
-				//std::cout << "store " << v.value << " , @" << ident << "_" << st_cur->tag << std::endl;
+				std::cout << "global @" << ident << "_" << st_cur->tag << " = alloc i32, " << v.value << std::endl;
+				// std::string init_value = init_val->Dump();
+				// std::cout << "store " << v.value << " , @" << ident << "_" << st_cur->tag << std::endl;
 				std::cout << "\n";
 			}
 			else
@@ -1555,9 +1770,108 @@ public:
 				// 注意了, SYSY中的所有常量decl时必须能够编译时求值, 变量的decl不用
 				// 不能把含变量/函数调用的表达式赋值给常量
 				// 那么全局变量呢???? 全局变量的声明初始值可以给诸如变量和函数表达式吗????
-				std::cout << "\t@" << ident << "_" << st_cur->tag << "= alloc i32\n";
+				std::cout << "\t@" << ident << "_" << st_cur->tag << " = alloc i32\n";
 				std::string init_value = init_val->Dump();
 				std::cout << "\tstore " << init_value << " , @" << ident << "_" << st_cur->tag << std::endl;
+			}
+		}
+		else if (type == ARRAY)
+		{
+			int array_size = const_exp->getValue();
+
+			if (st_cur == st_head)
+			{
+				VALUE v;
+				v.tag = VALUE::ARRAY;
+				st_cur->table[ident] = v;
+
+				std::cout << "global @" << ident << "_" << st_cur->tag << " = alloc [i32, " << array_size << "]"
+						  << ", zeroinit" << std::endl;
+				std::cout << std::endl;
+			}
+			else
+			{
+				VALUE v;
+				v.tag = VALUE::ARRAY;
+				st_cur->table[ident] = v;
+
+				std::cout << "\t@" << ident << "_" << st_cur->tag << " = alloc [i32, " << array_size << "]" << std::endl;
+			}
+		}
+		else if (type == ARRAY_INIT)
+		{
+			int array_size = const_exp->getValue();
+
+			if (st_cur == st_head)
+			{
+				// 全局数组初始化
+				// 初始化全是常量表达式, 应当直接求值
+				// 怎么求值???
+				// 这里必须强转指针了
+				std::vector<int32_t> init_vals = dynamic_cast<InitValAST *>(init_val.get())->getValueVector();
+				std::string init_str = "{";
+				for (int i = 0; i < init_vals.size(); i++)
+				{
+					if (i == 0)
+					{
+						init_str += std::to_string(init_vals[i]);
+					}
+					else
+					{
+						init_str += ", " + std::to_string(init_vals[i]);
+					}
+				}
+				for (int i = 0; i < array_size - init_vals.size(); i++)
+				{
+					if(init_vals.size() == 0 && i == 0)
+						init_str += "0";
+					else
+						init_str += ", 0";
+				}
+				init_str += "}";
+
+				VALUE v;
+				v.tag = VALUE::ARRAY;
+				st_cur->table[ident] = v;
+
+				std::cout << "global @" << ident << "_" << st_cur->tag << " = alloc [i32, " << array_size << "]"
+						  << ", " << init_str << std::endl;
+				std::cout << std::endl;
+			}
+			else
+			{
+				VALUE v;
+				v.tag = VALUE::ARRAY;
+				st_cur->table[ident] = v;
+
+				std::cout << "\t@" << ident << "_" << st_cur->tag << " = alloc [i32, " << array_size << "]" << std::endl;
+
+				// 数组开始初始化
+				// 这里有语义上的问题:
+				// 数组大小和初始化数组大小一定会一致吗
+
+				// 先假设是一致的
+				std::istringstream iss(init_val->Dump());
+				std::vector<std::string> tokens;
+				std::string token;
+				// 按照空白字符分割字符串
+				while (iss >> token)
+				{
+					tokens.push_back(token);
+				}
+				//assert(tokens.size() == array_size);
+				for (int i = 0; i < array_size; i++)
+				{
+					std::cout << "\t%" << reg_cnt << " = getelemptr @"
+							  << ident << "_" << st_cur->tag
+							  << ", " << i << std::endl;
+					reg_cnt++;
+
+					if(i < tokens.size())
+						std::cout << "\tstore " << tokens[i] << " , %" << reg_cnt - 1 << std::endl;
+					else
+						std::cout << "\tstore " << "0" << " , %" << reg_cnt - 1 << std::endl;
+				}
 			}
 		}
 
@@ -1565,20 +1879,6 @@ public:
 	}
 };
 
-class InitValAST : public BaseAST
-{
-public:
-	std::unique_ptr<BaseAST> exp;
 
-	std::string Dump() const override
-	{
-		return exp->Dump();
-	}
-
-	int32_t getValue() const override
-	{
-		return exp->getValue();
-	}
-};
 
 // ...
