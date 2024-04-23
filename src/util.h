@@ -38,11 +38,13 @@ std::string visit(const koopa_raw_integer_t &integer);
 int32_t visit(const koopa_raw_binary_t &binary);
 int32_t visit(const koopa_raw_load_t &load);
 void visit(const koopa_raw_store_t &store);
-int32_t visit(const koopa_raw_global_alloc_t &alloc, const int &type);
+int32_t visit(const koopa_raw_global_alloc_t &alloc, const int &global, const koopa_raw_type_t &type);
 void visit(const koopa_raw_branch_t &branch);
 void visit(const koopa_raw_jump_t &jump);
 int32_t visit(const koopa_raw_call_t &call);
 std::string visit(const koopa_raw_func_arg_ref_t &func_arg);
+int32_t visit(const koopa_raw_get_elem_ptr_t &get_elem_ptr);
+void visit(const koopa_raw_aggregate_t &aggregate);
 
 void getBlocksFrameSize(int32_t &size, int32_t &max_args, const koopa_raw_slice_t &bbs);
 void getInstsFrameSize(int32_t &size, int32_t &max_args, const koopa_raw_slice_t &insts);
@@ -141,6 +143,7 @@ void visit(const koopa_raw_function_t &func)
         std::cout << "\tadd t1, t1, sp\n";
         std::cout << "\tsw ra, 0(t1)\n";
     }
+    std::cout << std::endl;
     // std::cout << "\tsw ra, 0(sp)\n";
     // sp_offset += 4;
 
@@ -165,6 +168,20 @@ void visit(const koopa_raw_function_t &func)
     visit(func->bbs);
 }
 
+int32_t getAllocSize(koopa_raw_type_t type)
+{
+    if(type->tag == KOOPA_RTT_INT32)
+    {
+        return 4;
+    }
+    else if(type->tag == KOOPA_RTT_ARRAY)
+    {
+        return type->data.array.len * getAllocSize(type->data.array.base);
+    }
+
+    return -1;
+}
+
 void getBlocksFrameSize(int32_t &size, int32_t &max_args, const koopa_raw_slice_t &bbs)
 {
     assert(bbs.kind == KOOPA_RSIK_BASIC_BLOCK);
@@ -182,12 +199,31 @@ void getInstsFrameSize(int32_t &size, int32_t &max_args, const koopa_raw_slice_t
     {
         auto ptr = reinterpret_cast<koopa_raw_value_t>(insts.buffer[i]);
         // std::cout << insts.len << " " << ptr->kind.tag << " " << ptr->ty->tag << std::endl;
-        if (ptr->ty->tag == KOOPA_RTT_INT32 || ptr->ty->tag == KOOPA_RTT_POINTER)
+        if (ptr->ty->tag == KOOPA_RTT_INT32)
             size += 4; // 4 bytes
+        else if(ptr->ty->tag == KOOPA_RTT_POINTER)
+        {
+            if(ptr->kind.tag == KOOPA_RVT_ALLOC)
+            {
+                size += getAllocSize(ptr->ty->data.pointer.base);
+            }
+            else if(ptr->kind.tag == KOOPA_RVT_GET_ELEM_PTR)
+            {
+                size += 4;
+            }
+            else
+            {
+                std::cout << ptr->kind.tag << std::endl;
+                assert(false);
+            }
+        }
+        
         if (ptr->kind.tag == KOOPA_RVT_CALL)
         {
             max_args = (std::max)(max_args, int32_t(ptr->kind.data.call.args.len));
         }
+
+        //std::cout << "now size: " << size << std::endl;
     }
 }
 
@@ -208,6 +244,7 @@ void visit(const koopa_raw_value_t &value)
 {
     // 根据指令类型
     const auto &kind = value->kind;
+    // std::cout << "visit value: " << value->kind.tag << std::endl;
     switch (kind.tag)
     {
     case KOOPA_RVT_RETURN:
@@ -235,7 +272,7 @@ void visit(const koopa_raw_value_t &value)
         std::cout << std::endl;
         break;
     case KOOPA_RVT_ALLOC:
-        rv2offset[value] = visit(kind.data.global_alloc, 0);
+        rv2offset[value] = visit(kind.data.global_alloc, 0, value->ty);
         break;
     case KOOPA_RVT_BRANCH:
         visit(kind.data.branch);
@@ -253,7 +290,12 @@ void visit(const koopa_raw_value_t &value)
         std::cout << "\t.data\n";
         std::cout << "\t.global " << value->name + 1 << std::endl;
         std::cout << value->name + 1 << ":\n";
-        visit(kind.data.global_alloc, 1);
+        visit(kind.data.global_alloc, 1, value->ty);
+        std::cout << std::endl;
+        break;
+    case KOOPA_RVT_GET_ELEM_PTR:
+        rv2offset[value] = visit(kind.data.get_elem_ptr);
+        std::cout << std::endl;
         break;
     default:
         // 其他类型暂时遇不到
@@ -591,26 +633,67 @@ void visit(const koopa_raw_store_t &store)
     }
 }
 
-int32_t visit(const koopa_raw_global_alloc_t &alloc, const int &type)
+int32_t visit(const koopa_raw_global_alloc_t &alloc, const int &global, const koopa_raw_type_t &type)
 {
     // assert(sp_offset <= 2048);
-    if (type == 0)
+    if (global == 0)
     {
         // 这里规定type==0表示局部变量alloc
         // 返回的是栈偏移
-        sp_offset += 4;
-        return sp_offset - 4;
+
+        // lv9.1 数组alloc
+        // 如何得到数组的大小????
+        // 再次get到KOOPA IR是强类型的, 指令是有返回值的, 即type, alloc指令的返回值是指针类型
+        // 指针本身又有个基类型, 即指针是指向什么数据的
+        auto base = type->data.pointer.base;
+        if (base->tag == KOOPA_RTT_INT32)
+        {
+            sp_offset += 4;
+            return sp_offset - 4;
+        }
+        else if (base->tag == KOOPA_RTT_ARRAY)
+        {
+            // 这里忽略的对base的考虑, 因为只有int32类型, 简化了实现
+            int len = base->data.array.len;
+            sp_offset += 4 * len;
+            return sp_offset - 4 * len;
+        }
+        else
+        {
+            std::cout << "h: " << base->tag << std::endl;
+            assert(false);
+        }
     }
-    else if (type == 1)
+    else if (global == 1)
     {
         // type==1 表示全局变量alloc
         if (alloc.init->kind.tag == KOOPA_RVT_ZERO_INIT)
         {
-            std::cout << "\t.zero 4\n";
+            if(alloc.init->ty->tag == KOOPA_RTT_INT32)
+                std::cout << "\t.zero 4\n";
+            else if(alloc.init->ty->tag == KOOPA_RTT_ARRAY)
+            {
+                // 这里先只考虑了一维数组
+                std::cout << "\t.zero " << 4 * alloc.init->ty->data.array.len << std::endl;
+            }
+            else
+            {
+                printf("alloc init ty tag: %d\n", alloc.init->ty->tag);
+                assert(false);
+            }
         }
         else if (alloc.init->kind.tag == KOOPA_RVT_INTEGER)
         {
             std::cout << "\t.word " << alloc.init->kind.data.integer.value << std::endl;
+        }
+        else if(alloc.init->kind.tag == KOOPA_RVT_AGGREGATE)
+        {
+            int len = alloc.init->kind.data.aggregate.elems.len;
+            for(int i = 0;i < len;i++)
+            {
+                int value = reinterpret_cast<koopa_raw_value_t>(alloc.init->kind.data.aggregate.elems.buffer[i])->kind.data.integer.value;
+                std::cout << "\t.word " << value << std::endl;
+            }
         }
         else
         {
@@ -723,7 +806,7 @@ int32_t visit(const koopa_raw_call_t &call)
         // std::cout << "call return\n";
         if (sp_offset < 2048)
         {
-            std::cout << "\tsw a0, " << sp_offset << "(sp)";
+            std::cout << "\tsw a0, " << sp_offset << "(sp)\n";
         }
         else
         {
@@ -761,4 +844,67 @@ std::string visit(const koopa_raw_func_arg_ref_t &func_arg)
     }
 
     return reg;
+}
+
+int32_t visit(const koopa_raw_get_elem_ptr_t &get_elem_ptr)
+{
+    // 处理src
+    // t0存放数组首地址
+    assert(rv2offset.find(get_elem_ptr.src) != rv2offset.end());
+    int32_t offset = rv2offset[get_elem_ptr.src];
+    if (offset < 2048)
+    {
+        std::cout << "\taddi t0, sp, " << offset << std::endl;
+    }
+    else
+    {
+        std::cout << "\tli t1, " << offset << std::endl;
+        std::cout << "\tadd t0, sp, t1" << std::endl;
+    }
+
+    // 处理index
+    // t1存放偏移量
+    if (get_elem_ptr.index->kind.tag == KOOPA_RVT_INTEGER)
+    {
+        std::cout << "\tli t1, " << get_elem_ptr.index->kind.data.integer.value << std::endl;
+    }
+    else
+    {
+        assert(rv2offset.find(get_elem_ptr.index) != rv2offset.end());
+        int32_t offset = rv2offset[get_elem_ptr.index];
+        if (offset < 2048)
+        {
+            std::cout << "\tlw t1, " << offset << "(sp)\n";
+        }
+        else
+        {
+
+            std::cout << "\tli t3, " << offset << std::endl;
+            std::cout << "\tadd t3, t3, sp\n";
+            std::cout << "\tlw t1, 0(t3)\n";
+        }
+    }
+    // 4是base的大小
+    std::cout << "\tli t2, " << "4" << std::endl;
+    std::cout << "\tmul t1, t1, t2\n";
+
+    // 得到最终地址t0, 放到栈上
+    std::cout << "\tadd t0, t0, t1\n";
+    if (sp_offset < 2048)
+    {
+        std::cout << "\tsw t0, " << sp_offset << "(sp)\n";
+    }
+    else
+    {
+        std::cout << "\tli t1, " << sp_offset << std::endl;
+        std::cout << "\tadd t1, t1, sp\n";
+        std::cout << "\tsw t0, 0(t1)\n";
+    }
+    sp_offset += 4;
+    return sp_offset - 4;
+}
+
+void visit(const koopa_raw_aggregate_t &aggregate)
+{
+
 }
