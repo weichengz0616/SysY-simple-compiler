@@ -7,24 +7,35 @@ decl @putarray(i32, *i32)
 decl @starttime()
 decl @stoptime()
 
-global @x_0 = alloc [i32, 2], {10, 20}
+global @x_0 = alloc [[i32, 3], 2], {1, 2, 0, 0, 0, 0}
+
+global @y_0 = alloc [[i32, 3], 2], zeroinit
 
 fun @main(): i32
 {
 %entry:
-	@arr_2 = alloc [i32, 5]
+	@arr_2 = alloc [[i32, 3], 2]
 	%0 = getelemptr @arr_2, 0
-	store 1 , %0
-	%1 = getelemptr @arr_2, 1
-	store 2 , %1
-	%2 = getelemptr @arr_2, 2
-	store 3 , %2
-	%3 = getelemptr @arr_2, 3
-	store 0 , %3
-	%4 = getelemptr @arr_2, 4
-	store 0 , %4
-	%5 = getelemptr @arr_2, 2
-	%6 = load %5
-	ret %6
+	%1 = getelemptr %0, 0
+	store 1, %1
+	%2 = getelemptr @arr_2, 0
+	%3 = getelemptr %2, 1
+	store 2, %3
+	%4 = getelemptr @arr_2, 0
+	%5 = getelemptr %4, 2
+	store 0, %5
+	%6 = getelemptr @arr_2, 1
+	%7 = getelemptr %6, 0
+	store 0, %7
+	%8 = getelemptr @arr_2, 1
+	%9 = getelemptr %8, 1
+	store 0, %9
+	%10 = getelemptr @arr_2, 1
+	%11 = getelemptr %10, 2
+	store 0, %11
+	%12 = getelemptr @arr_2, 0
+	%13 = getelemptr %12, 2
+	%14 = load %13
+	ret %14
 }
 

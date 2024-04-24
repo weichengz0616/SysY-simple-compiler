@@ -73,11 +73,6 @@ static int st_tag_cnt = 0;
 static std::stack<std::string> while_entry;
 static std::stack<std::string> while_end;
 
-
-
-
-
-
 class InitValAST;
 class ConstInitValAST;
 
@@ -1383,7 +1378,7 @@ public:
 	};
 	TYPE type;
 	std::unique_ptr<BaseAST> const_exp;
-	std::vector<std::unique_ptr<BaseAST>> const_exp_list;
+	std::vector<std::unique_ptr<BaseAST>> const_init_list;
 
 	std::string Dump() const override
 	{
@@ -1398,14 +1393,79 @@ public:
 		assert(false);
 	}
 
-	std::vector<int32_t> getValueVector()
+	std::vector<int32_t> getValueVector(std::vector<int32_t> &widths)
 	{
-		std::vector<int32_t> tmp;
-		for (auto &iter : const_exp_list)
+		// assert(type == ARRAY);
+
+		// 处理初始化列表----------目标: 拍平成一个一维数组
+		std::vector<int32_t> complete;
+		int dim = widths.size();
+		int all = 1;
+		for (auto &iter : widths)
 		{
-			tmp.push_back(iter->getValue());
+			all *= iter;
 		}
-		return tmp;
+
+		if (type == ZERO_ARRAY)
+		{
+			complete = std::vector<int32_t>(all, 0);
+			return complete;
+		}
+		else if (type == ARRAY)
+		{
+		}
+
+		// 计数: 当前放进了多少个elem了
+		int cnt = 0;
+		for (auto &iter : const_init_list)
+		{
+			auto ptr = dynamic_cast<ConstInitValAST *>(iter.get());
+			if (ptr->type == EXP)
+			{
+				cnt++;
+				complete.emplace_back(ptr->getValue());
+			}
+			else
+			{
+				// array
+
+				// 首先得看这个初始化列表占多少维
+				// 注意这里没有考虑语义上的错误, 默认源代码语义正确.
+				int tmp = 0;
+				int num = cnt;
+				if (num == 0)
+				{
+					tmp = dim - 1;
+				}
+				else
+				{
+					for (int i = dim - 1; i >= 0; i--)
+					{
+						tmp++;
+						num /= widths[i];
+						if (num == 1)
+						{
+							break;
+						}
+					}
+				}
+
+				std::vector<int32_t> sub_widths;
+				for (int i = dim - tmp; i < dim; i++)
+				{
+					sub_widths.emplace_back(widths[i]);
+				}
+				auto sub_complete = ptr->getValueVector(sub_widths);
+				cnt += sub_complete.size();
+				complete.insert(complete.end(), sub_complete.begin(), sub_complete.end());
+			}
+		}
+
+		for (int i = cnt; i < all; i++)
+		{
+			complete.emplace_back(0);
+		}
+		return complete;
 	}
 };
 
@@ -1421,7 +1481,7 @@ public:
 	TYPE type;
 	std::string ident;
 	std::unique_ptr<BaseAST> const_init_val;
-	std::unique_ptr<BaseAST> const_exp;
+	std::vector<std::unique_ptr<BaseAST>> const_exps;
 
 	std::string Dump() const override
 	{
@@ -1435,70 +1495,92 @@ public:
 		}
 		else if (type == ARRAY)
 		{
-			int array_size = const_exp->getValue();
+			// 数组基本信息
+			int32_t dim = const_exps.size();
+			std::vector<int32_t> widths;
+			std::vector<int32_t> suf_mul(dim, 0); // 后缀积
+			for (auto &iter : const_exps)
+			{
+				widths.emplace_back(iter->getValue());
+			}
+			suf_mul[dim - 1] = 1;
+			for (int i = dim - 2; i >= 0; i--)
+			{
+				suf_mul[i] = widths[i + 1] * suf_mul[i + 1];
+			}
 
+			// 生成数组type
+			std::string array_type;
+			for (int i = dim - 1; i >= 0; i--)
+			{
+				if (i == dim - 1)
+				{
+					array_type = "[i32, " + std::to_string(widths[i]) + "]";
+				}
+				else
+				{
+					array_type = "[" + array_type + ", " + std::to_string(widths[i]) + "]";
+				}
+			}
+
+			// 处理初始化列表
+			std::vector<int32_t> init_values = dynamic_cast<ConstInitValAST *>(const_init_val.get())->getValueVector(widths);
+
+			// 处理符号表
+			VALUE v;
+			v.tag = VALUE::CONST_ARRAY;
+			st_cur->table[ident] = v;
+
+			// to IR
 			if (st_cur == st_head)
 			{
-				std::vector<int32_t> init_vals = dynamic_cast<ConstInitValAST *>(const_init_val.get())->getValueVector();
 				std::string init_str = "{";
-				for (int i = 0; i < init_vals.size(); i++)
+				for (int i = 0; i < init_values.size(); i++)
 				{
 					if (i == 0)
 					{
-						init_str += std::to_string(init_vals[i]);
+						init_str += std::to_string(init_values[i]);
 					}
 					else
 					{
-						init_str += ", " + std::to_string(init_vals[i]);
+						init_str += ", " + std::to_string(init_values[i]);
 					}
-				}
-				for (int i = 0; i < array_size - init_vals.size(); i++)
-				{
-					if(init_vals.size() == 0 && i == 0)
-						init_str += "0";
-					else
-						init_str += ", 0";
 				}
 				init_str += "}";
 
-				VALUE v;
-				v.tag = VALUE::CONST_ARRAY;
-				st_cur->table[ident] = v;
-
-				std::cout << "global @" << ident << "_" << st_cur->tag << " = alloc [i32, " << array_size << "]"
+				std::cout << "global @" << ident << "_" << st_cur->tag << " = alloc " << array_type
 						  << ", " << init_str << std::endl;
 				std::cout << std::endl;
 			}
 			else
 			{
-				std::vector<int32_t> init_vals = dynamic_cast<ConstInitValAST *>(const_init_val.get())->getValueVector();
 
-				VALUE v;
-				v.tag = VALUE::CONST_ARRAY;
-				st_cur->table[ident] = v;
+				std::cout << "\t@" << ident << "_" << st_cur->tag << " = alloc " << array_type << std::endl;
 
-				std::cout << "\t@" << ident << "_" << st_cur->tag << " = alloc [i32, " << array_size << "]" << std::endl;
-
-				for (int i = 0; i < array_size; i++)
+				// 利用getelemptr得到指针, 然后store初始化数据
+				// dim个getelemptr, 本质是dim层循环
+				for (int i = 0; i < init_values.size(); i++)
 				{
-					if (i < init_vals.size())
+					std::vector<int32_t> offsets(dim, 0);
+					int tmp = i;
+					for (int j = 0; j < dim; j++)
 					{
-						std::cout << "\t%" << reg_cnt << " = getelemptr @"
-								  << ident << "_" << st_cur->tag
-								  << ", " << i << std::endl;
-						reg_cnt++;
+						offsets[j] = tmp / suf_mul[j];
+						tmp = tmp % suf_mul[j];
 
-						std::cout << "\tstore " << init_vals[i] << " , %" << reg_cnt - 1 << std::endl;
+						if (j == 0)
+						{
+							std::cout << "\t%" << reg_cnt << " = getelemptr @" << ident << "_" << st_cur->tag << ", " << offsets[j] << std::endl;
+							reg_cnt++;
+						}
+						else
+						{
+							std::cout << "\t%" << reg_cnt << " = getelemptr %" << reg_cnt - 1 << ", " << offsets[j] << std::endl;
+							reg_cnt++;
+						}
 					}
-					else
-					{
-						std::cout << "\t%" << reg_cnt << " = getelemptr @"
-								  << ident << "_" << st_cur->tag
-								  << ", " << i << std::endl;
-						reg_cnt++;
 
-						std::cout << "\tstore " << "0" << " , %" << reg_cnt - 1 << std::endl;
-					}
+					std::cout << "\tstore " << init_values[i] << ", %" << reg_cnt - 1 << std::endl;
 				}
 			}
 		}
@@ -1506,7 +1588,6 @@ public:
 		return std::string();
 	}
 };
-
 
 class BlockItemAST : public BaseAST
 {
@@ -1561,19 +1642,10 @@ public:
 	};
 	TYPE type;
 	std::string ident;
-	std::unique_ptr<BaseAST> exp;
+	std::vector<std::unique_ptr<BaseAST>> exps;
 
 	std::string Dump() const override
 	{
-		// 注意这里常量才会直接求值
-		// 变量应该翻译成IR
-		// assert(symbol_table.find(ident) != symbol_table.end());
-		// if(symbol_table[ident].tag == VALUE::CONST)
-		// 	return std::to_string(getValue());
-		// else
-		// 	return ident;
-		// return std::string();
-
 		// lval 可能出现在两个地方, 这里的后续处理丢给后面的
 		// 1.表达式中
 		// 2.赋值语句左侧
@@ -1583,7 +1655,15 @@ public:
 		}
 		else if (type == ARRAY)
 		{
-			std::string index = exp->Dump();
+			// lv9.2
+			// load多维数组
+			// 数组基本信息
+			int32_t dim = exps.size();
+			std::vector<std::string> widths;
+			for (auto &iter : exps)
+			{
+				widths.emplace_back(iter->Dump());
+			}
 
 			auto st_tmp = st_cur;
 			while (st_tmp->table.find(ident) == st_tmp->table.end())
@@ -1593,8 +1673,19 @@ public:
 			auto &symbol_table = st_tmp->table;
 			assert(symbol_table.find(ident) != symbol_table.end());
 
-			std::cout << "\t%" << reg_cnt << " = getelemptr @" << ident << "_" << st_tmp->tag << ", " << index << std::endl;
-			reg_cnt++;
+			for (int j = 0; j < dim; j++)
+			{
+				if (j == 0)
+				{
+					std::cout << "\t%" << reg_cnt << " = getelemptr @" << ident << "_" << st_tmp->tag << ", " << widths[j] << std::endl;
+					reg_cnt++;
+				}
+				else
+				{
+					std::cout << "\t%" << reg_cnt << " = getelemptr %" << reg_cnt - 1 << ", " << widths[j] << std::endl;
+					reg_cnt++;
+				}
+			}
 
 			return "%" + std::to_string(reg_cnt - 1);
 		}
@@ -1661,23 +1752,11 @@ public:
 	};
 	TYPE type;
 	std::unique_ptr<BaseAST> exp;
-	std::vector<std::unique_ptr<BaseAST>> exp_list;
+	std::vector<std::unique_ptr<BaseAST>> init_list;
 
 	std::string Dump() const override
 	{
-		if (type == EXP)
-		{
-			return exp->Dump();
-		}
-		else
-		{
-			std::string tmp;
-			for (auto &iter : exp_list)
-			{
-				tmp += " " + iter->Dump();
-			}
-			return tmp;
-		}
+		assert(type == EXP);
 		return exp->Dump();
 	}
 
@@ -1687,14 +1766,152 @@ public:
 		return exp->getValue();
 	}
 
-	std::vector<int32_t> getValueVector()
+	// 保证能常量求值
+	std::vector<int32_t> getValueVector(std::vector<int32_t> &widths)
 	{
-		std::vector<int32_t> tmp;
-		for (auto &iter : exp_list)
+		// assert(type == ARRAY);
+		// 处理初始化列表----------目标: 拍平成一个一维数组
+		std::vector<int32_t> complete;
+		int dim = widths.size();
+		int all = 1;
+		for (auto &iter : widths)
 		{
-			tmp.push_back(iter->getValue());
+			all *= iter;
 		}
-		return tmp;
+
+		if (type == ZERO_ARRAY)
+		{
+			complete = std::vector<int32_t>(all, 0);
+			return complete;
+		}
+		else if (type == ARRAY)
+		{
+		}
+
+		// 计数: 当前放进了多少个elem了
+		int cnt = 0;
+		for (auto &iter : init_list)
+		{
+			auto ptr = dynamic_cast<InitValAST *>(iter.get());
+			if (ptr->type == EXP)
+			{
+				cnt++;
+				complete.emplace_back(ptr->getValue());
+			}
+			else
+			{
+				// array
+
+				// 首先得看这个初始化列表占多少维
+				// 注意这里没有考虑语义上的错误, 默认源代码语义正确.
+				int tmp = 0;
+				int num = cnt;
+				if (num == 0)
+				{
+					tmp = dim - 1;
+				}
+				else
+				{
+					for (int i = dim - 1; i >= 0; i--)
+					{
+						tmp++;
+						num /= widths[i];
+						if (num == 1)
+						{
+							break;
+						}
+					}
+				}
+
+				std::vector<int32_t> sub_widths;
+				for (int i = dim - tmp; i < dim; i++)
+				{
+					sub_widths.emplace_back(widths[i]);
+				}
+				auto sub_complete = ptr->getValueVector(sub_widths);
+				cnt += sub_complete.size();
+				complete.insert(complete.end(), sub_complete.begin(), sub_complete.end());
+			}
+		}
+
+		for (int i = cnt; i < all; i++)
+		{
+			complete.emplace_back(0);
+		}
+		return complete;
+	}
+
+	// 变量or表达式求值
+	std::vector<std::string> getValueString(std::vector<int32_t> &widths)
+	{
+		std::vector<std::string> complete;
+		int dim = widths.size();
+		int all = 1;
+		for (auto &iter : widths)
+		{
+			all *= iter;
+		}
+
+		if (type == ZERO_ARRAY)
+		{
+			complete = std::vector<std::string>(all, "0");
+			return complete;
+		}
+		else if (type == ARRAY)
+		{
+		}
+
+		// 计数: 当前放进了多少个elem了
+		int cnt = 0;
+		for (auto &iter : init_list)
+		{
+			auto ptr = dynamic_cast<InitValAST *>(iter.get());
+			if (ptr->type == EXP)
+			{
+				cnt++;
+				complete.emplace_back(ptr->Dump());
+			}
+			else
+			{
+				// array
+
+				// 首先得看这个初始化列表占多少维
+				// 注意这里没有考虑语义上的错误, 默认源代码语义正确.
+				int tmp = 0;
+				int num = cnt;
+				if (num == 0)
+				{
+					tmp = dim - 1;
+				}
+				else
+				{
+					for (int i = dim - 1; i >= 0; i--)
+					{
+						tmp++;
+						num /= widths[i];
+						if (num == 1)
+						{
+							break;
+						}
+					}
+				}
+
+				std::vector<int32_t> sub_widths;
+				for (int i = dim - tmp; i < dim; i++)
+				{
+					sub_widths.emplace_back(widths[i]);
+				}
+				auto sub_complete = ptr->getValueString(sub_widths);
+				cnt += sub_complete.size();
+				complete.insert(complete.end(), sub_complete.begin(), sub_complete.end());
+			}
+		}
+
+		for (int i = cnt; i < all; i++)
+		{
+			complete.emplace_back("0");
+		}
+		return complete;
 	}
 };
 
@@ -1711,7 +1928,7 @@ public:
 	TYPE type;
 	std::string ident;
 	std::unique_ptr<BaseAST> init_val;
-	std::unique_ptr<BaseAST> const_exp;
+	std::vector<std::unique_ptr<BaseAST>> const_exps;
 
 	std::string Dump() const override
 	{
@@ -1777,100 +1994,133 @@ public:
 		}
 		else if (type == ARRAY)
 		{
-			int array_size = const_exp->getValue();
+			// 数组基本信息
+			int32_t dim = const_exps.size();
+			std::vector<int32_t> widths;
+			for (auto &iter : const_exps)
+			{
+				widths.emplace_back(iter->getValue());
+			}
+
+			// 生成数组type
+			std::string array_type;
+			for (int i = dim - 1; i >= 0; i--)
+			{
+				if (i == dim - 1)
+				{
+					array_type = "[i32, " + std::to_string(widths[i]) + "]";
+				}
+				else
+				{
+					array_type = "[" + array_type + ", " + std::to_string(widths[i]) + "]";
+				}
+			}
+
+			// 处理符号表
+			VALUE v;
+			v.tag = VALUE::ARRAY;
+			st_cur->table[ident] = v;
 
 			if (st_cur == st_head)
 			{
-				VALUE v;
-				v.tag = VALUE::ARRAY;
-				st_cur->table[ident] = v;
-
-				std::cout << "global @" << ident << "_" << st_cur->tag << " = alloc [i32, " << array_size << "]"
+				std::cout << "global @" << ident << "_" << st_cur->tag << " = alloc " << array_type
 						  << ", zeroinit" << std::endl;
 				std::cout << std::endl;
 			}
 			else
 			{
-				VALUE v;
-				v.tag = VALUE::ARRAY;
-				st_cur->table[ident] = v;
 
-				std::cout << "\t@" << ident << "_" << st_cur->tag << " = alloc [i32, " << array_size << "]" << std::endl;
+				std::cout << "\t@" << ident << "_" << st_cur->tag << " = alloc " << array_type << std::endl;
 			}
 		}
 		else if (type == ARRAY_INIT)
 		{
-			int array_size = const_exp->getValue();
+			// 数组基本信息
+			int32_t dim = const_exps.size();
+			std::vector<int32_t> widths;
+			std::vector<int32_t> suf_mul(dim, 0); // 后缀积
+			for (auto &iter : const_exps)
+			{
+				widths.emplace_back(iter->getValue());
+			}
+			suf_mul[dim - 1] = 1;
+			for (int i = dim - 2; i >= 0; i--)
+			{
+				suf_mul[i] = widths[i + 1] * suf_mul[i + 1];
+			}
 
+			// 生成数组type
+			std::string array_type;
+			for (int i = dim - 1; i >= 0; i--)
+			{
+				if (i == dim - 1)
+				{
+					array_type = "[i32, " + std::to_string(widths[i]) + "]";
+				}
+				else
+				{
+					array_type = "[" + array_type + ", " + std::to_string(widths[i]) + "]";
+				}
+			}
+
+			// 处理符号表
+			VALUE v;
+			v.tag = VALUE::CONST_ARRAY;
+			st_cur->table[ident] = v;
+
+			// to IR
 			if (st_cur == st_head)
 			{
 				// 全局数组初始化
 				// 初始化全是常量表达式, 应当直接求值
-				// 怎么求值???
-				// 这里必须强转指针了
-				std::vector<int32_t> init_vals = dynamic_cast<InitValAST *>(init_val.get())->getValueVector();
+				std::vector<int32_t> init_values = dynamic_cast<InitValAST *>(init_val.get())->getValueVector(widths);
 				std::string init_str = "{";
-				for (int i = 0; i < init_vals.size(); i++)
+				for (int i = 0; i < init_values.size(); i++)
 				{
 					if (i == 0)
 					{
-						init_str += std::to_string(init_vals[i]);
+						init_str += std::to_string(init_values[i]);
 					}
 					else
 					{
-						init_str += ", " + std::to_string(init_vals[i]);
+						init_str += ", " + std::to_string(init_values[i]);
 					}
-				}
-				for (int i = 0; i < array_size - init_vals.size(); i++)
-				{
-					if(init_vals.size() == 0 && i == 0)
-						init_str += "0";
-					else
-						init_str += ", 0";
 				}
 				init_str += "}";
 
-				VALUE v;
-				v.tag = VALUE::ARRAY;
-				st_cur->table[ident] = v;
-
-				std::cout << "global @" << ident << "_" << st_cur->tag << " = alloc [i32, " << array_size << "]"
+				std::cout << "global @" << ident << "_" << st_cur->tag << " = alloc " << array_type
 						  << ", " << init_str << std::endl;
 				std::cout << std::endl;
 			}
 			else
 			{
-				VALUE v;
-				v.tag = VALUE::ARRAY;
-				st_cur->table[ident] = v;
+				std::vector<std::string> init_values = dynamic_cast<InitValAST *>(init_val.get())->getValueString(widths);
+				std::cout << "\t@" << ident << "_" << st_cur->tag << " = alloc " << array_type << std::endl;
 
-				std::cout << "\t@" << ident << "_" << st_cur->tag << " = alloc [i32, " << array_size << "]" << std::endl;
-
-				// 数组开始初始化
-				// 这里有语义上的问题:
-				// 数组大小和初始化数组大小一定会一致吗
-
-				// 先假设是一致的
-				std::istringstream iss(init_val->Dump());
-				std::vector<std::string> tokens;
-				std::string token;
-				// 按照空白字符分割字符串
-				while (iss >> token)
+				// 利用getelemptr得到指针, 然后store初始化数据
+				// dim个getelemptr, 本质是dim层循环
+				for (int i = 0; i < init_values.size(); i++)
 				{
-					tokens.push_back(token);
-				}
-				//assert(tokens.size() == array_size);
-				for (int i = 0; i < array_size; i++)
-				{
-					std::cout << "\t%" << reg_cnt << " = getelemptr @"
-							  << ident << "_" << st_cur->tag
-							  << ", " << i << std::endl;
-					reg_cnt++;
+					std::vector<int32_t> offsets(dim, 0);
+					int tmp = i;
+					for (int j = 0; j < dim; j++)
+					{
+						offsets[j] = tmp / suf_mul[j];
+						tmp = tmp % suf_mul[j];
 
-					if(i < tokens.size())
-						std::cout << "\tstore " << tokens[i] << " , %" << reg_cnt - 1 << std::endl;
-					else
-						std::cout << "\tstore " << "0" << " , %" << reg_cnt - 1 << std::endl;
+						if (j == 0)
+						{
+							std::cout << "\t%" << reg_cnt << " = getelemptr @" << ident << "_" << st_cur->tag << ", " << offsets[j] << std::endl;
+							reg_cnt++;
+						}
+						else
+						{
+							std::cout << "\t%" << reg_cnt << " = getelemptr %" << reg_cnt - 1 << ", " << offsets[j] << std::endl;
+							reg_cnt++;
+						}
+					}
+
+					std::cout << "\tstore " << init_values[i] << ", %" << reg_cnt - 1 << std::endl;
 				}
 			}
 		}
@@ -1878,7 +2128,5 @@ public:
 		return std::string();
 	}
 };
-
-
 
 // ...
