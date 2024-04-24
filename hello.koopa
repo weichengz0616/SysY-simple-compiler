@@ -7,9 +7,7 @@ decl @putarray(i32, *i32)
 decl @starttime()
 decl @stoptime()
 
-global @x_0 = alloc [[i32, 3], 2], {1, 2, 0, 0, 0, 0}
-
-global @y_0 = alloc [[i32, 3], 2], zeroinit
+global @x_0 = alloc [[i32, 3], 2], {{1, 2, 0}, {0, 0, 0}}
 
 fun @main(): i32
 {

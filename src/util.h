@@ -170,11 +170,11 @@ void visit(const koopa_raw_function_t &func)
 
 int32_t getAllocSize(koopa_raw_type_t type)
 {
-    if(type->tag == KOOPA_RTT_INT32)
+    if (type->tag == KOOPA_RTT_INT32)
     {
         return 4;
     }
-    else if(type->tag == KOOPA_RTT_ARRAY)
+    else if (type->tag == KOOPA_RTT_ARRAY)
     {
         return type->data.array.len * getAllocSize(type->data.array.base);
     }
@@ -201,13 +201,13 @@ void getInstsFrameSize(int32_t &size, int32_t &max_args, const koopa_raw_slice_t
         // std::cout << insts.len << " " << ptr->kind.tag << " " << ptr->ty->tag << std::endl;
         if (ptr->ty->tag == KOOPA_RTT_INT32)
             size += 4; // 4 bytes
-        else if(ptr->ty->tag == KOOPA_RTT_POINTER)
+        else if (ptr->ty->tag == KOOPA_RTT_POINTER)
         {
-            if(ptr->kind.tag == KOOPA_RVT_ALLOC)
+            if (ptr->kind.tag == KOOPA_RVT_ALLOC)
             {
                 size += getAllocSize(ptr->ty->data.pointer.base);
             }
-            else if(ptr->kind.tag == KOOPA_RVT_GET_ELEM_PTR)
+            else if (ptr->kind.tag == KOOPA_RVT_GET_ELEM_PTR)
             {
                 size += 4;
             }
@@ -217,13 +217,13 @@ void getInstsFrameSize(int32_t &size, int32_t &max_args, const koopa_raw_slice_t
                 assert(false);
             }
         }
-        
+
         if (ptr->kind.tag == KOOPA_RVT_CALL)
         {
             max_args = (std::max)(max_args, int32_t(ptr->kind.data.call.args.len));
         }
 
-        //std::cout << "now size: " << size << std::endl;
+        // std::cout << "now size: " << size << std::endl;
     }
 }
 
@@ -654,9 +654,10 @@ int32_t visit(const koopa_raw_global_alloc_t &alloc, const int &global, const ko
         else if (base->tag == KOOPA_RTT_ARRAY)
         {
             // 这里忽略的对base的考虑, 因为只有int32类型, 简化了实现
-            int len = base->data.array.len;
-            sp_offset += 4 * len;
-            return sp_offset - 4 * len;
+            // lv9.2 此时要考虑多维数组, 即base就是个数组
+            int32_t size = getAllocSize(type);
+            sp_offset += size ;
+            return sp_offset - size;
         }
         else
         {
@@ -669,12 +670,11 @@ int32_t visit(const koopa_raw_global_alloc_t &alloc, const int &global, const ko
         // type==1 表示全局变量alloc
         if (alloc.init->kind.tag == KOOPA_RVT_ZERO_INIT)
         {
-            if(alloc.init->ty->tag == KOOPA_RTT_INT32)
-                std::cout << "\t.zero 4\n";
-            else if(alloc.init->ty->tag == KOOPA_RTT_ARRAY)
+            if (alloc.init->ty->tag == KOOPA_RTT_INT32 || alloc.init->ty->tag == KOOPA_RTT_ARRAY)
             {
                 // 这里先只考虑了一维数组
-                std::cout << "\t.zero " << 4 * alloc.init->ty->data.array.len << std::endl;
+                // lv9.2 n维
+                std::cout << "\t.zero " << getAllocSize(alloc.init->ty) << std::endl;
             }
             else
             {
@@ -686,14 +686,9 @@ int32_t visit(const koopa_raw_global_alloc_t &alloc, const int &global, const ko
         {
             std::cout << "\t.word " << alloc.init->kind.data.integer.value << std::endl;
         }
-        else if(alloc.init->kind.tag == KOOPA_RVT_AGGREGATE)
+        else if (alloc.init->kind.tag == KOOPA_RVT_AGGREGATE)
         {
-            int len = alloc.init->kind.data.aggregate.elems.len;
-            for(int i = 0;i < len;i++)
-            {
-                int value = reinterpret_cast<koopa_raw_value_t>(alloc.init->kind.data.aggregate.elems.buffer[i])->kind.data.integer.value;
-                std::cout << "\t.word " << value << std::endl;
-            }
+            visit(alloc.init->kind.data.aggregate);
         }
         else
         {
@@ -885,7 +880,8 @@ int32_t visit(const koopa_raw_get_elem_ptr_t &get_elem_ptr)
         }
     }
     // 4是base的大小
-    std::cout << "\tli t2, " << "4" << std::endl;
+    std::cout << "\tli t2, "
+              << "4" << std::endl;
     std::cout << "\tmul t1, t1, t2\n";
 
     // 得到最终地址t0, 放到栈上
@@ -906,5 +902,23 @@ int32_t visit(const koopa_raw_get_elem_ptr_t &get_elem_ptr)
 
 void visit(const koopa_raw_aggregate_t &aggregate)
 {
-
+    int len = aggregate.elems.len;
+    for (int i = 0; i < len; i++)
+    {
+        auto elem = reinterpret_cast<koopa_raw_value_t>(aggregate.elems.buffer[i]);
+        if(elem->kind.tag == KOOPA_RVT_INTEGER)
+        {   
+            int value = elem->kind.data.integer.value;
+            std::cout << "\t.word " << value << std::endl;
+        }
+        else if(elem->kind.tag == KOOPA_RVT_AGGREGATE)
+        {
+            visit(elem->kind.data.aggregate);
+        }
+        else
+        {
+            std::cout << "aggregate elem error...\n";
+            assert(false);
+        }
+    }
 }

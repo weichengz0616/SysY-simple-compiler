@@ -1441,9 +1441,12 @@ public:
 				{
 					for (int i = dim - 1; i >= 0; i--)
 					{
-						tmp++;
-						num /= widths[i];
-						if (num == 1)
+						if (num / widths[i] >= 1)
+						{
+							tmp++;
+							num /= widths[i];
+						}
+						else
 						{
 							break;
 						}
@@ -1534,19 +1537,55 @@ public:
 			// to IR
 			if (st_cur == st_head)
 			{
-				std::string init_str = "{";
+				std::string init_str;
+				for(int i = 0;i < dim;i++)
+				{
+					init_str += "{";
+				}
 				for (int i = 0; i < init_values.size(); i++)
 				{
 					if (i == 0)
 					{
-						init_str += std::to_string(init_values[i]);
+						init_str = init_str + std::to_string(init_values[i]);
 					}
 					else
 					{
-						init_str += ", " + std::to_string(init_values[i]);
+						int cnt = i;
+						int tmp = dim - 1;
+						std::string left;
+						while (cnt > 1)
+						{
+							if (cnt % widths[tmp] == 0)
+							{
+								left += "{";
+								cnt = cnt / widths[tmp];
+								tmp--;
+							}
+							else
+							{
+								break;
+							}
+						}
+
+						init_str = init_str + ", " + left + std::to_string(init_values[i]);
+
+						cnt = i + 1;
+						tmp = dim - 1;
+						while (cnt > 1)
+						{
+							if (cnt % widths[tmp] == 0)
+							{
+								init_str += "}";
+								cnt = cnt / widths[tmp];
+								tmp--;
+							}
+							else
+							{
+								break;
+							}
+						}
 					}
 				}
-				init_str += "}";
 
 				std::cout << "global @" << ident << "_" << st_cur->tag << " = alloc " << array_type
 						  << ", " << init_str << std::endl;
@@ -1779,6 +1818,9 @@ public:
 			all *= iter;
 		}
 
+		// std::cout << "all : " << all << std::endl;
+		// std::cout << "type: " << type << std::endl;
+
 		if (type == ZERO_ARRAY)
 		{
 			complete = std::vector<int32_t>(all, 0);
@@ -1786,59 +1828,76 @@ public:
 		}
 		else if (type == ARRAY)
 		{
-		}
-
-		// 计数: 当前放进了多少个elem了
-		int cnt = 0;
-		for (auto &iter : init_list)
-		{
-			auto ptr = dynamic_cast<InitValAST *>(iter.get());
-			if (ptr->type == EXP)
+			// 计数: 当前放进了多少个elem了
+			int cnt = 0;
+			// std::cout << "init list len: " << init_list.size() << std::endl;
+			for (auto &iter : init_list)
 			{
-				cnt++;
-				complete.emplace_back(ptr->getValue());
-			}
-			else
-			{
-				// array
-
-				// 首先得看这个初始化列表占多少维
-				// 注意这里没有考虑语义上的错误, 默认源代码语义正确.
-				int tmp = 0;
-				int num = cnt;
-				if (num == 0)
+				auto ptr = dynamic_cast<InitValAST *>(iter.get());
+				if (ptr->type == EXP)
 				{
-					tmp = dim - 1;
+					cnt++;
+					complete.emplace_back(ptr->getValue());
 				}
 				else
 				{
-					for (int i = dim - 1; i >= 0; i--)
+					// array
+
+					// 首先得看这个初始化列表占多少维
+					// 注意这里没有考虑语义上的错误, 默认源代码语义正确.
+					int tmp = 0;
+					int num = cnt;
+					if (num == 0)
 					{
-						tmp++;
-						num /= widths[i];
-						if (num == 1)
+						tmp = dim - 1;
+					}
+					else
+					{
+						for (int i = dim - 1; i >= 0; i--)
 						{
-							break;
+							if (num / widths[i] >= 1)
+							{
+								tmp++;
+								num /= widths[i];
+							}
+							else
+							{
+								break;
+							}
 						}
 					}
-				}
 
-				std::vector<int32_t> sub_widths;
-				for (int i = dim - tmp; i < dim; i++)
-				{
-					sub_widths.emplace_back(widths[i]);
+					std::vector<int32_t> sub_widths;
+					for (int i = dim - tmp; i < dim; i++)
+					{
+						sub_widths.emplace_back(widths[i]);
+					}
+					// std::cout << "sub widths: ";
+					// printVector(sub_widths);
+					auto sub_complete = ptr->getValueVector(sub_widths);
+					cnt += sub_complete.size();
+					complete.insert(complete.end(), sub_complete.begin(), sub_complete.end());
+					// std::cout << "complete: ";
+					// printVector(complete);
 				}
-				auto sub_complete = ptr->getValueVector(sub_widths);
-				cnt += sub_complete.size();
-				complete.insert(complete.end(), sub_complete.begin(), sub_complete.end());
+			}
+
+			for (int i = cnt; i < all; i++)
+			{
+				complete.emplace_back(0);
 			}
 		}
 
-		for (int i = cnt; i < all; i++)
-		{
-			complete.emplace_back(0);
-		}
 		return complete;
+	}
+
+	void printVector(std::vector<int32_t> &vec)
+	{
+		for (auto &iter : vec)
+		{
+			std::cout << iter << " ";
+		}
+		std::cout << std::endl;
 	}
 
 	// 变量or表达式求值
@@ -1887,9 +1946,12 @@ public:
 				{
 					for (int i = dim - 1; i >= 0; i--)
 					{
-						tmp++;
-						num /= widths[i];
-						if (num == 1)
+						if (num / widths[i] >= 1)
+						{
+							tmp++;
+							num /= widths[i];
+						}
+						else
 						{
 							break;
 						}
@@ -2074,19 +2136,56 @@ public:
 				// 全局数组初始化
 				// 初始化全是常量表达式, 应当直接求值
 				std::vector<int32_t> init_values = dynamic_cast<InitValAST *>(init_val.get())->getValueVector(widths);
-				std::string init_str = "{";
+				// 生成完整的初始化列表
+				std::string init_str;
+				for(int i = 0;i < dim;i++)
+				{
+					init_str += "{";
+				}
 				for (int i = 0; i < init_values.size(); i++)
 				{
 					if (i == 0)
 					{
-						init_str += std::to_string(init_values[i]);
+						init_str = init_str + std::to_string(init_values[i]);
 					}
 					else
 					{
-						init_str += ", " + std::to_string(init_values[i]);
+						int cnt = i;
+						int tmp = dim - 1;
+						std::string left;
+						while (cnt > 1)
+						{
+							if (cnt % widths[tmp] == 0)
+							{
+								left += "{";
+								cnt = cnt / widths[tmp];
+								tmp--;
+							}
+							else
+							{
+								break;
+							}
+						}
+
+						init_str = init_str + ", " + left + std::to_string(init_values[i]);
+
+						cnt = i + 1;
+						tmp = dim - 1;
+						while (cnt > 1)
+						{
+							if (cnt % widths[tmp] == 0)
+							{
+								init_str += "}";
+								cnt = cnt / widths[tmp];
+								tmp--;
+							}
+							else
+							{
+								break;
+							}
+						}
 					}
 				}
-				init_str += "}";
 
 				std::cout << "global @" << ident << "_" << st_cur->tag << " = alloc " << array_type
 						  << ", " << init_str << std::endl;
