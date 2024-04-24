@@ -303,20 +303,128 @@
 //   return arr[2];
 // }
 
-int x[2][3] = {1,2};
+//int x[2][3] = {1,2};
 // int arr[2][3][4] = {
 //   {{1, 2, 3, 4}, {5, 6, 7, 8}, {9, 10, 11, 12}},
 //   {{13, 14, 15, 16}, {17, 18, 19, 20}, {21, 22, 23, 24}}
 // };
 //int y[2][3];
 
-int main() {
-  int arr[2][3] = {1, 2};
-  return arr[0][2];
+// int main() {
+//   int arr[2][3] = {1, 2};
+//   return arr[0][2];
+// }
+
+
+// void f1d(int arr[]) {
+//   int i = 0;
+//   while (i < 10) {
+//     arr[i] = i;
+//     i = i + 1;
+//   }
+// }
+
+// void f2d(int arr[][8 + 2]) {
+//   arr[1][2] = 3;
+//   int i = 0;
+//   while (i < 10) {
+//     f1d(arr[i]);
+//     i = i + 1;
+//   }
+// }
+
+// int main() {
+//   return 33;
+// }
+
+
+// void init(int arr[][10][10]) {
+//   // int i = 0;
+//   // while (i < 10) {
+//   //   int j = 0;
+//   //   while (j < 10) {
+//   //     int k = 0;
+//   //     while (k < 10) {
+//   //       arr[i][j][k] = i * 100 + j * 10 + k;
+//   //       k = k + 1;
+//   //     }
+//   //     j = j + 1;
+//   //   }
+//   //   i = i + 1;
+//   // }
+//   arr[1][2][3] = 777;
+// }
+
+// int f1(int a0[], int a1[], int a2[], int a3[], int a4[], int a5[], int a6[],
+//        int a7[], int a8[], int a9[]) {
+//   return a0[0] + a1[1] + a2[2] + a3[3] + a4[4] + a5[5] + a6[6] + a7[7] + a8[8] +
+//          a9[9];
+// }
+
+// int f2(int a0[][10], int a1[], int a2, int a3[], int a4[], int a5[][10][10],
+//        int a6[], int a7[], int a8, int a9[][10]) {
+//   return a0[0][9] + a1[1] + a2 + a3[3] + a4[4] + a5[5][5][5] + a6[6] + a7[7] +
+//          a8 + a9[9][8];
+// }
+
+// int main() {
+//   int arr[10][10][10], sum = 0;
+//   init(arr);
+//   sum = sum + f1(arr[0][0], arr[1][1], arr[2][2], arr[3][3], arr[4][4],
+//                  arr[5][5], arr[6][6], arr[7][7], arr[8][8], arr[9][9]);
+//   sum = sum + f2(arr[0], arr[1][1], arr[2][2][2], arr[3][3], arr[4][4], arr,
+//                  arr[6][6], arr[7][7], arr[8][8][8], arr[9]);
+//   putint(sum);
+//   putch(10);
+//   return 0;
+// }
+
+int buf[2][100];
+
+// sort [l, r)
+void merge_sort(int l, int r)
+{
+    if (l + 1 >= r)
+        return;
+
+    int mid = (l + r) / 2;
+    merge_sort(l, mid);
+    merge_sort(mid, r);
+
+    int i = l, j = mid, k = l;
+    while (i < mid && j < r) {
+        if (buf[0][i] < buf[0][j]) {
+            buf[1][k] = buf[0][i];
+            i = i + 1;
+        } else {
+            buf[1][k] = buf[0][j];
+            j = j + 1;
+        }
+        k = k + 1;
+    }
+    while (i < mid) {
+        buf[1][k] = buf[0][i];
+        i = i + 1;
+        k = k + 1;
+    }
+    while (j < r) {
+        buf[1][k] = buf[0][j];
+        j = j + 1;
+        k = k + 1;
+    }
+
+    while (l < r) {
+        buf[0][l] = buf[1][l];
+        l = l + 1;
+    }
 }
 
-
-
-
+int main()
+{
+    int n = getarray(buf[0]);
+    merge_sort(0, n);
+    putarray(n, buf[0]);
+    return 0;
+}
 
 

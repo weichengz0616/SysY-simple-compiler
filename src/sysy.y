@@ -194,10 +194,41 @@ FuncFParam
 : Type IDENT
 {
   auto ast = new FuncFParamAST();
+  ast->type = FuncFParamAST::IDENT;
   auto tmp = unique_ptr<BaseAST>($1)->Dump();
   assert(tmp == "int");
   ast->btype = "i32";
   ast->ident = *unique_ptr<string>($2);
+
+  $$ = ast;
+}
+| Type IDENT '[' ']'
+{
+  auto ast = new FuncFParamAST();
+  ast->type = FuncFParamAST::ARRAY_ZERO;
+  auto tmp = unique_ptr<BaseAST>($1)->Dump();
+  assert(tmp == "int");
+  ast->btype = "*i32";
+  ast->ident = *unique_ptr<string>($2);
+
+  $$ = ast;
+}
+| Type IDENT '[' ']' ArrayDimList
+{
+  auto ast = new FuncFParamAST();
+  ast->type = FuncFParamAST::ARRAY;
+  auto tmp = unique_ptr<BaseAST>($1)->Dump();
+  assert(tmp == "int");
+  ast->btype = "i32";
+  ast->ident = *unique_ptr<string>($2);
+
+  auto tmp_list = $5;
+  ast->const_exps = vector<unique_ptr<BaseAST>>();
+  for(auto& i : *tmp_list)
+  {
+    ast->const_exps.push_back(move(i));
+  }
+  delete tmp_list;
 
   $$ = ast;
 };

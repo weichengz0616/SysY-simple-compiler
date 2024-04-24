@@ -39,10 +39,13 @@ struct VALUE
 		VAR,
 		FUNCTION,
 		CONST_ARRAY,
-		ARRAY
+		ARRAY,		// 统一成指针更好?????
+		ARRAY_PARAM // 数组参数, 传给函数的数组
 	};
 	VALUE_TYPE tag;
 	int32_t value;
+	std::string type;
+	std::vector<int32_t> widths;
 };
 // static std::unordered_map<std::string, VALUE> symbol_table;
 
@@ -73,8 +76,33 @@ static int st_tag_cnt = 0;
 static std::stack<std::string> while_entry;
 static std::stack<std::string> while_end;
 
+// lv9.3
+// 定义左值类型
+enum LVAL_TYPE
+{
+	LVAL_CONST, // 常量, 可以直接求值
+	LVAL_VAR, // 变量or数组完全解引用, 本质是一个指针: *i32
+	LVAL_ARRAY, // 全数组, 即数组名
+	LVAL_PARTIAL_ARRAY // 部分数组, 即数组部分解引用, 子数组
+};
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// 类声明
 class InitValAST;
 class ConstInitValAST;
+class LValAST;
 
 // 所有 AST 的基类
 class BaseAST
@@ -141,6 +169,152 @@ public:
 	}
 };
 
+class LValAST : public BaseAST
+{
+public:
+	enum TYPE
+	{
+		IDENT,
+		ARRAY
+	};
+	TYPE type;
+	std::string ident;
+	std::vector<std::unique_ptr<BaseAST>> exps;
+
+	std::string lvalDump(std::string &_ident, LVAL_TYPE& lval_type)
+	{
+		// 直接返回LVal的类型好了
+		_ident = ident;
+		// 查符号表
+		auto st_tmp = st_cur;
+		while (st_tmp->table.find(ident) == st_tmp->table.end())
+		{
+			st_tmp = st_tmp->prev;
+		}
+		auto &symbol_table = st_tmp->table;
+		assert(symbol_table.find(ident) != symbol_table.end());
+
+		if (type == IDENT)
+		{
+			// 注意这里ident可能是变量or数组
+			// 如果是数组 => 一定不完整 => 一定作为参数传递
+			if (symbol_table[ident].tag == VALUE::ARRAY ||
+				symbol_table[ident].tag == VALUE::CONST_ARRAY ||
+				symbol_table[ident].tag == VALUE::ARRAY_PARAM)
+			{
+				lval_type = LVAL_TYPE::LVAL_ARRAY;
+			}
+			else if(symbol_table[ident].tag == VALUE::CONST)
+			{
+				lval_type = LVAL_TYPE::LVAL_CONST;
+			}
+			else if(symbol_table[ident].tag == VALUE::VAR)
+			{
+				lval_type = LVAL_TYPE::LVAL_VAR;
+			}
+			else
+			{
+				assert(false);
+			}
+
+			return "@" + ident + "_" + std::to_string(st_tmp->tag);
+		}
+		else if (type == ARRAY)
+		{
+			// 注意array不一定完整, 即可能是个部分数组
+			// dim >= 1
+			int32_t dim = exps.size();
+			std::vector<std::string> widths;
+			for (auto &iter : exps)
+			{
+				widths.emplace_back(iter->Dump());
+			}
+
+			if (symbol_table[ident].tag == VALUE::ARRAY || symbol_table[ident].tag == VALUE::CONST_ARRAY)
+			{
+				for (int j = 0; j < dim; j++)
+				{
+					if (j == 0)
+					{
+						std::cout << "\t%" << reg_cnt << " = getelemptr @" << ident << "_" << st_tmp->tag << ", " << widths[j] << std::endl;
+						reg_cnt++;
+					}
+					else
+					{
+						std::cout << "\t%" << reg_cnt << " = getelemptr %" << reg_cnt - 1 << ", " << widths[j] << std::endl;
+						reg_cnt++;
+					}
+				}
+			}
+			else if (symbol_table[ident].tag == VALUE::ARRAY_PARAM)
+			{
+				std::cout << "\t%" << reg_cnt << " = load @" << ident << "_" << st_tmp->tag << std::endl;
+				reg_cnt++;
+				std::cout << "\t%" << reg_cnt << " = getptr %" << reg_cnt - 1 << ", " << widths[0] << std::endl;
+				reg_cnt++;
+				for (int j = 1; j < dim; j++)
+				{
+					std::cout << "\t%" << reg_cnt << " = getelemptr %" << reg_cnt - 1 << ", " << widths[j] << std::endl;
+					reg_cnt++;
+				}
+			}
+			else
+			{
+				assert(false);
+			}
+
+			// 不完整数组
+			if (dim < symbol_table[ident].widths.size())
+			{
+				lval_type = LVAL_TYPE::LVAL_PARTIAL_ARRAY;
+			}
+			// 完整数组
+			else if (dim == symbol_table[ident].widths.size())
+			{
+				lval_type = LVAL_TYPE::LVAL_VAR;
+			}
+			else
+			{
+				std::cout << "lval array dim exceeds...\n";
+				assert(false);
+			}
+
+			return "%" + std::to_string(reg_cnt - 1);
+		}
+
+		return std::string();
+	}
+
+	std::string Dump() const override
+	{
+		// lval 可能出现在两个地方, 这里的后续处理丢给后面的
+		// 1.表达式中
+		//	 (1) 普通表达式里, 一定是最终的elem, 即维度是取完整了的
+		//	 (2) 函数传参可以传数组参数, 即维度没有取完, 这个要单独讨论
+		// 2.赋值语句左侧
+		
+		// lv9.3
+		// 重写了左值dump, 见上
+		// 本函数不会再被调用
+		assert(false);
+
+		return ident;
+	}
+
+	int32_t getValue() const override
+	{
+		assert(type == IDENT);
+		auto st_tmp = st_cur;
+		while (st_tmp->table.find(ident) == st_tmp->table.end())
+		{
+			st_tmp = st_tmp->prev;
+		}
+		auto &symbol_table = st_tmp->table;
+		assert(symbol_table.find(ident) != symbol_table.end());
+		return symbol_table[ident].value;
+	}
+};
+
 // FuncDef 也是 BaseAST
 class FuncDefAST : public BaseAST
 {
@@ -175,7 +349,6 @@ public:
 
 		has_returned.push_back(0);
 		rt_cur = 0;
-		;
 
 		// std::cout << "funcdef: " << has_returned.size() << " " << rt_cur << std::endl;
 		std::vector<std::string> params;
@@ -212,17 +385,17 @@ public:
 
 		// 这里把所有参数都重新存起来, 简化后端实现
 		// 不然在后端还得讨论IR 数值/表达式的值/参数值
+		// lv9.3 需要得到参数类型才行, 参数可能是指针
 		for (auto &ident : params)
 		{
-			// 加入符号表, 普通的局部变量
-			VALUE v;
-			v.tag = VALUE::VAR;
-			auto &symbol_table = st_cur->table;
-			symbol_table[ident] = v;
+			// 已经在param的dump中加入符号表
+			assert(st_cur->table.find(ident) != st_cur->table.end());
 
-			std::cout << "\t@" << ident << "_" << st_cur->tag << "= alloc i32\n";
+			std::cout << "\t@" << ident << "_" << st_cur->tag
+					  << " = alloc " << st_cur->table[ident].type << std::endl;
 			std::cout << "\tstore "
-					  << "%" << ident << "_" << st_cur->tag << " , @" << ident << "_" << st_cur->tag << std::endl;
+					  << "%" << ident << "_" << st_cur->tag
+					  << " , @" << ident << "_" << st_cur->tag << std::endl;
 		}
 
 		block->Dump();
@@ -261,37 +434,76 @@ public:
 	}
 };
 
-// class FuncTypeAST : public BaseAST
-// {
-// public:
-// 	enum TYPE {INT, VOID};
-// 	TYPE type;
-// 	std::string Dump() const override
-// 	{
-// 		if(type == INT)
-// 		{
-// 			std::cout << ": i32\n";
-// 			return "int";
-// 		}
-// 		else
-// 		{
-// 			std::cout << std::endl;
-// 			return "void";
-// 		}
-
-// 		return std::string();
-// 	}
-// };
-
 class FuncFParamAST : public BaseAST
 {
 public:
+	enum TYPE
+	{
+		IDENT,
+		ARRAY_ZERO,
+		ARRAY
+	};
+	TYPE type;
 	std::string btype;
 	std::string ident;
+	std::vector<std::unique_ptr<BaseAST>> const_exps;
 
 	std::string Dump() const override
 	{
-		std::cout << "%" << ident << "_" << st_cur->tag << ": " << btype;
+		VALUE v;
+		auto &symbol_table = st_cur->table;
+
+		if (type == IDENT)
+		{
+			std::cout << "%" << ident << "_" << st_cur->tag << ": " << btype;
+			v.tag = VALUE::VAR;
+			v.type = "i32";
+		}
+		else if (type == ARRAY_ZERO)
+		{
+			std::cout << "%" << ident << "_" << st_cur->tag << ": " << btype;
+			v.tag = VALUE::ARRAY_PARAM;
+			v.widths = std::vector<int32_t>();
+			v.widths.emplace_back(0);
+			v.type = "*i32";
+		}
+		else if (type == ARRAY)
+		{
+			int dim = const_exps.size();
+			std::vector<int32_t> widths;
+			widths.emplace_back(1);
+			for (auto &iter : const_exps)
+			{
+				widths.emplace_back(iter->getValue());
+			}
+
+			// 生成array type
+			std::string array_type;
+			// 注意widths手动在前面添了一个1
+			for (int i = dim; i >= 1; i--)
+			{
+				if (i == dim)
+				{
+					array_type = "[i32, " + std::to_string(widths[i]) + "]";
+				}
+				else
+				{
+					array_type = "[" + array_type + ", " + std::to_string(widths[i]) + "]";
+				}
+			}
+
+			array_type = "*" + array_type;
+
+			// ?????????????
+			// btype = array_type;
+
+			std::cout << "%" << ident << "_" << st_cur->tag << ": " << array_type;
+			v.tag = VALUE::ARRAY_PARAM;
+			v.widths = widths;
+			v.type = array_type;
+		}
+
+		symbol_table[ident] = v;
 		return ident;
 	}
 };
@@ -610,35 +822,25 @@ public:
 		else if (type == ZERO_RETURN)
 		{
 			has_returned[rt_cur] = true;
+
+			// 这里得根据当前函数的类型判断????
 			// 注意这里只能处理int函数
-			std::cout << "\tret 0\n";
+			std::cout << "\tret \n";
 		}
 		else if (type == LVAL)
 		{
 			// std::cout << "stmt dump...lval\n";
 			std::string exp_string = exp->Dump();
+
+
 			// 此时lval必定是变量, 否则是语义错误
 			// lv9 lval还可能是数组变量, 此时应该写入地址
-			std::string lval_string = lval->Dump();
-			// int32_t new_value = exp->getValue();
+			std::string ident;
+			LVAL_TYPE lval_type;
+			std::string ret = dynamic_cast<LValAST *>(lval.get())->lvalDump(ident, lval_type);
 
-			if (lval_string[0] == '%')
-			{
-				// 数组
-				std::cout << "\tstore " << exp_string << " , " << lval_string << std::endl;
-			}
-			else
-			{
-				auto st_tmp = st_cur;
-				while (st_tmp->table.find(lval_string) == st_tmp->table.end())
-				{
-					st_tmp = st_tmp->prev;
-				}
-				auto &symbol_table = st_tmp->table;
-				assert(symbol_table.find(lval_string) != symbol_table.end());
-				// symbol_table[lval_string].value = new_value;
-				std::cout << "\tstore " << exp_string << " , @" << lval_string << "_" << st_tmp->tag << std::endl;
-			}
+			assert(lval_type == LVAL_TYPE::LVAL_VAR);
+			std::cout << "\tstore " << exp_string << " , " << ret << std::endl;
 		}
 		else if (type == ZERO_EXP)
 		{
@@ -670,15 +872,6 @@ public:
 		return std::string();
 	}
 };
-// class NumberAST : public BaseAST
-// {
-// public:
-// 	int int_const;
-
-// 	void Dump() const override
-// 	{
-// 	}
-// };
 
 // ================================= lv3 ===========================
 class ExpAST : public BaseAST
@@ -715,14 +908,9 @@ public:
 		}
 		else if (lval)
 		{
-			// std::cout << " " << number << " ";
-			std::string ident = lval->Dump();
-			if (ident[0] == '%')
-			{
-				std::cout << "\t%" << reg_cnt << " = load %" << reg_cnt - 1 << std::endl;
-				reg_cnt++;
-				return "%" + std::to_string(reg_cnt - 1);
-			}
+			std::string ident;
+			LVAL_TYPE lval_type;
+			std::string ret = dynamic_cast<LValAST *>(lval.get())->lvalDump(ident, lval_type);
 
 			auto st_tmp = st_cur;
 			while (st_tmp->table.find(ident) == st_tmp->table.end())
@@ -731,18 +919,51 @@ public:
 			}
 			assert(st_tmp);
 			auto &symbol_table = st_tmp->table;
-			if (symbol_table[ident].tag == VALUE::CONST)
+
+			if(lval_type == LVAL_TYPE::LVAL_CONST)
+			{	
 				return std::to_string(lval->getValue());
-			else
+			}
+			else if(lval_type == LVAL_TYPE::LVAL_VAR)
 			{
-				std::cout << "\t%" << reg_cnt << " = load @" << ident << "_" << st_tmp->tag << std::endl;
+				std::cout << "\t%" << reg_cnt << " = load " << ret << std::endl;
 				reg_cnt++;
 				return "%" + std::to_string(reg_cnt - 1);
 			}
+			else if(lval_type == LVAL_TYPE::LVAL_ARRAY)
+			{
+				// 必定是传参
+				if(symbol_table[ident].tag == VALUE::ARRAY || symbol_table[ident].tag == VALUE::CONST_ARRAY)
+				{
+					std::cout << "\t%" << reg_cnt << " = getelemptr " << ret << ", 0" << std::endl;
+				}
+				else if(symbol_table[ident].tag == VALUE::ARRAY_PARAM)
+				{
+					std::cout << "\t%" << reg_cnt << " = load " << ret << std::endl;
+					reg_cnt++;
+					std::cout << "\t%" << reg_cnt << " = getptr %" << reg_cnt - 1  << ", 0" << std::endl;
+				}
+				
+				reg_cnt++;
+				return "%" + std::to_string(reg_cnt - 1);
+			}
+			else if(lval_type == LVAL_TYPE::LVAL_PARTIAL_ARRAY)
+			{
+				// 必定是传参
+				std::cout << "\t%" << reg_cnt << " = getelemptr " << ret << ", 0" << std::endl;
+				reg_cnt++;
+				return "%" + std::to_string(reg_cnt - 1);
+			}
+			else
+			{
+				assert(false);
+			}
+			
 		}
 		else
+		{
 			return std::to_string(number);
-
+		}
 		return std::string();
 	}
 
@@ -1357,16 +1578,6 @@ public:
 	}
 };
 
-// class BTypeAST : public BaseAST
-// {
-// public:
-// 	std::string btype;
-// 	std::string Dump() const override
-// 	{
-// 		return btype;
-// 	}
-// };
-
 class ConstInitValAST : public BaseAST
 {
 public:
@@ -1532,13 +1743,14 @@ public:
 			// 处理符号表
 			VALUE v;
 			v.tag = VALUE::CONST_ARRAY;
+			v.widths = widths;
 			st_cur->table[ident] = v;
 
 			// to IR
 			if (st_cur == st_head)
 			{
 				std::string init_str;
-				for(int i = 0;i < dim;i++)
+				for (int i = 0; i < dim; i++)
 				{
 					init_str += "{";
 				}
@@ -1669,82 +1881,6 @@ public:
 	// 		return stmt->lastReturn();
 	// 	}
 	// }
-};
-
-class LValAST : public BaseAST
-{
-public:
-	enum TYPE
-	{
-		IDENT,
-		ARRAY
-	};
-	TYPE type;
-	std::string ident;
-	std::vector<std::unique_ptr<BaseAST>> exps;
-
-	std::string Dump() const override
-	{
-		// lval 可能出现在两个地方, 这里的后续处理丢给后面的
-		// 1.表达式中
-		// 2.赋值语句左侧
-		if (type == IDENT)
-		{
-			return ident;
-		}
-		else if (type == ARRAY)
-		{
-			// lv9.2
-			// load多维数组
-			// 数组基本信息
-			int32_t dim = exps.size();
-			std::vector<std::string> widths;
-			for (auto &iter : exps)
-			{
-				widths.emplace_back(iter->Dump());
-			}
-
-			auto st_tmp = st_cur;
-			while (st_tmp->table.find(ident) == st_tmp->table.end())
-			{
-				st_tmp = st_tmp->prev;
-			}
-			auto &symbol_table = st_tmp->table;
-			assert(symbol_table.find(ident) != symbol_table.end());
-
-			for (int j = 0; j < dim; j++)
-			{
-				if (j == 0)
-				{
-					std::cout << "\t%" << reg_cnt << " = getelemptr @" << ident << "_" << st_tmp->tag << ", " << widths[j] << std::endl;
-					reg_cnt++;
-				}
-				else
-				{
-					std::cout << "\t%" << reg_cnt << " = getelemptr %" << reg_cnt - 1 << ", " << widths[j] << std::endl;
-					reg_cnt++;
-				}
-			}
-
-			return "%" + std::to_string(reg_cnt - 1);
-		}
-
-		assert(false);
-		return ident;
-	}
-
-	int32_t getValue() const override
-	{
-		assert(type == IDENT);
-		auto st_tmp = st_cur;
-		while (st_tmp->table.find(ident) == st_tmp->table.end())
-		{
-			st_tmp = st_tmp->prev;
-		}
-		auto &symbol_table = st_tmp->table;
-		assert(symbol_table.find(ident) != symbol_table.end());
-		return symbol_table[ident].value;
-	}
 };
 
 class ConstExpAST : public BaseAST
@@ -2081,6 +2217,7 @@ public:
 			// 处理符号表
 			VALUE v;
 			v.tag = VALUE::ARRAY;
+			v.widths = widths;
 			st_cur->table[ident] = v;
 
 			if (st_cur == st_head)
@@ -2127,7 +2264,8 @@ public:
 
 			// 处理符号表
 			VALUE v;
-			v.tag = VALUE::CONST_ARRAY;
+			v.tag = VALUE::ARRAY;
+			v.widths = widths;
 			st_cur->table[ident] = v;
 
 			// to IR
@@ -2138,7 +2276,7 @@ public:
 				std::vector<int32_t> init_values = dynamic_cast<InitValAST *>(init_val.get())->getValueVector(widths);
 				// 生成完整的初始化列表
 				std::string init_str;
-				for(int i = 0;i < dim;i++)
+				for (int i = 0; i < dim; i++)
 				{
 					init_str += "{";
 				}
