@@ -379,52 +379,72 @@
 //   return 0;
 // }
 
-int buf[2][100];
+// int buf[2][100];
 
-// sort [l, r)
-void merge_sort(int l, int r)
-{
-    if (l + 1 >= r)
-        return;
+// // sort [l, r)
+// void merge_sort(int l, int r)
+// {
+//     if (l + 1 >= r)
+//         return;
 
-    int mid = (l + r) / 2;
-    merge_sort(l, mid);
-    merge_sort(mid, r);
+//     int mid = (l + r) / 2;
+//     merge_sort(l, mid);
+//     merge_sort(mid, r);
 
-    int i = l, j = mid, k = l;
-    while (i < mid && j < r) {
-        if (buf[0][i] < buf[0][j]) {
-            buf[1][k] = buf[0][i];
-            i = i + 1;
-        } else {
-            buf[1][k] = buf[0][j];
-            j = j + 1;
-        }
-        k = k + 1;
-    }
-    while (i < mid) {
-        buf[1][k] = buf[0][i];
-        i = i + 1;
-        k = k + 1;
-    }
-    while (j < r) {
-        buf[1][k] = buf[0][j];
-        j = j + 1;
-        k = k + 1;
-    }
+//     int i = l, j = mid, k = l;
+//     while (i < mid && j < r) {
+//         if (buf[0][i] < buf[0][j]) {
+//             buf[1][k] = buf[0][i];
+//             i = i + 1;
+//         } else {
+//             buf[1][k] = buf[0][j];
+//             j = j + 1;
+//         }
+//         k = k + 1;
+//     }
+//     while (i < mid) {
+//         buf[1][k] = buf[0][i];
+//         i = i + 1;
+//         k = k + 1;
+//     }
+//     while (j < r) {
+//         buf[1][k] = buf[0][j];
+//         j = j + 1;
+//         k = k + 1;
+//     }
 
-    while (l < r) {
-        buf[0][l] = buf[1][l];
-        l = l + 1;
+//     while (l < r) {
+//         buf[0][l] = buf[1][l];
+//         l = l + 1;
+//     }
+// }
+
+// int main()
+// {
+//     int n = getarray(buf[0]);
+//     merge_sort(0, n);
+//     putarray(n, buf[0]);
+//     return 0;
+// }
+
+int ga[10], gb[2][3] = {5, 6, 7, 8};
+
+int main() {
+  int a[10], b[2][3] = {1, 2, 3, 4}, sum = 0;
+  int i = 0;
+  while (i < 2) {
+    int j = 0;
+    while (j < 3) {
+      sum = sum + b[i][j] + gb[i][j];
+      j = j + 1;
     }
+    i = i + 1;
+  }
+  i = 0;
+  while (i < 10) {
+    a[i] = sum + i;
+    ga[i] = sum + i;
+    i = i + 1;
+  }
+  return sum;
 }
-
-int main()
-{
-    int n = getarray(buf[0]);
-    merge_sort(0, n);
-    putarray(n, buf[0]);
-    return 0;
-}
-
-

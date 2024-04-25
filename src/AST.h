@@ -87,7 +87,9 @@ enum LVAL_TYPE
 };
 
 
-
+// 对于return; 语句
+// 若为int函数, 自动补上返回值0
+static bool cur_func_ret;
 
 
 
@@ -374,11 +376,13 @@ public:
 		{
 			std::cout << ": i32\n";
 			st_head->table[ident].value = 1;
+			cur_func_ret = true;
 		}
 		else
 		{
 			std::cout << "\n";
 			st_head->table[ident].value = 0;
+			cur_func_ret = false;
 		}
 		std::cout << "{\n";
 		std::cout << "%entry:\n";
@@ -825,7 +829,10 @@ public:
 
 			// 这里得根据当前函数的类型判断????
 			// 注意这里只能处理int函数
-			std::cout << "\tret \n";
+			if(cur_func_ret)
+				std::cout << "\tret 0\n";
+			else
+				std::cout << "\tret\n";
 		}
 		else if (type == LVAL)
 		{

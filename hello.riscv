@@ -1,10 +1,15 @@
 	.data
-	.global x_0
-x_0:
-	.word 1
-	.word 2
-	.word 0
-	.word 0
+	.global ga_0
+ga_0:
+	.zero 40
+
+	.data
+	.global gb_0
+gb_0:
+	.word 5
+	.word 6
+	.word 7
+	.word 8
 	.word 0
 	.word 0
 
@@ -19,133 +24,341 @@ x_0:
 	.text
 	.globl main
 main:
-	li t0, -96
+	li t0, -272
 	add sp, sp, t0
 
-	sw ra, 92(sp)
+	sw ra, 268(sp)
 
-	addi t0, sp, 0
+	addi t0, sp, 40
+	li t1, 0
+	li t2, 12
+	mul t1, t1, t2
+	add t0, t0, t1
+	sw t0, 64(sp)
+
+	addi t0, sp, 64
 	li t1, 0
 	li t2, 4
 	mul t1, t1, t2
 	add t0, t0, t1
-	sw t0, 8(sp)
-
-	addi t0, sp, 8
-	li t1, 0
-	li t2, 4
-	mul t1, t1, t2
-	add t0, t0, t1
-	sw t0, 12(sp)
+	sw t0, 68(sp)
 
 	li t0, 1
-	sw t0, 12(sp)
+	lw t1, 68(sp)
+	sw t0, 0(t1)
 
-	addi t0, sp, 0
+	addi t0, sp, 40
 	li t1, 0
-	li t2, 4
+	li t2, 12
 	mul t1, t1, t2
 	add t0, t0, t1
-	sw t0, 16(sp)
+	sw t0, 72(sp)
 
-	addi t0, sp, 16
+	addi t0, sp, 72
 	li t1, 1
 	li t2, 4
 	mul t1, t1, t2
 	add t0, t0, t1
-	sw t0, 20(sp)
+	sw t0, 76(sp)
 
 	li t0, 2
-	sw t0, 20(sp)
+	lw t1, 76(sp)
+	sw t0, 0(t1)
 
-	addi t0, sp, 0
+	addi t0, sp, 40
 	li t1, 0
-	li t2, 4
+	li t2, 12
 	mul t1, t1, t2
 	add t0, t0, t1
-	sw t0, 24(sp)
+	sw t0, 80(sp)
 
-	addi t0, sp, 24
+	addi t0, sp, 80
 	li t1, 2
 	li t2, 4
 	mul t1, t1, t2
 	add t0, t0, t1
-	sw t0, 28(sp)
+	sw t0, 84(sp)
 
-	li t0, 0
-	sw t0, 28(sp)
-
-	addi t0, sp, 0
-	li t1, 1
-	li t2, 4
-	mul t1, t1, t2
-	add t0, t0, t1
-	sw t0, 32(sp)
-
-	addi t0, sp, 32
-	li t1, 0
-	li t2, 4
-	mul t1, t1, t2
-	add t0, t0, t1
-	sw t0, 36(sp)
-
-	li t0, 0
-	sw t0, 36(sp)
-
-	addi t0, sp, 0
-	li t1, 1
-	li t2, 4
-	mul t1, t1, t2
-	add t0, t0, t1
-	sw t0, 40(sp)
+	li t0, 3
+	lw t1, 84(sp)
+	sw t0, 0(t1)
 
 	addi t0, sp, 40
 	li t1, 1
-	li t2, 4
+	li t2, 12
 	mul t1, t1, t2
 	add t0, t0, t1
-	sw t0, 44(sp)
+	sw t0, 88(sp)
 
-	li t0, 0
-	sw t0, 44(sp)
-
-	addi t0, sp, 0
-	li t1, 1
-	li t2, 4
-	mul t1, t1, t2
-	add t0, t0, t1
-	sw t0, 48(sp)
-
-	addi t0, sp, 48
-	li t1, 2
-	li t2, 4
-	mul t1, t1, t2
-	add t0, t0, t1
-	sw t0, 52(sp)
-
-	li t0, 0
-	sw t0, 52(sp)
-
-	addi t0, sp, 0
+	addi t0, sp, 88
 	li t1, 0
 	li t2, 4
 	mul t1, t1, t2
 	add t0, t0, t1
-	sw t0, 56(sp)
+	sw t0, 92(sp)
 
-	addi t0, sp, 56
+	li t0, 4
+	lw t1, 92(sp)
+	sw t0, 0(t1)
+
+	addi t0, sp, 40
+	li t1, 1
+	li t2, 12
+	mul t1, t1, t2
+	add t0, t0, t1
+	sw t0, 96(sp)
+
+	addi t0, sp, 96
+	li t1, 1
+	li t2, 4
+	mul t1, t1, t2
+	add t0, t0, t1
+	sw t0, 100(sp)
+
+	li t0, 0
+	lw t1, 100(sp)
+	sw t0, 0(t1)
+
+	addi t0, sp, 40
+	li t1, 1
+	li t2, 12
+	mul t1, t1, t2
+	add t0, t0, t1
+	sw t0, 104(sp)
+
+	addi t0, sp, 104
 	li t1, 2
 	li t2, 4
 	mul t1, t1, t2
 	add t0, t0, t1
-	sw t0, 60(sp)
+	sw t0, 108(sp)
 
-	lw t0, 60(sp)
-	sw t0, 64(sp)
+	li t0, 0
+	lw t1, 108(sp)
+	sw t0, 0(t1)
 
-	lw a0, 64(sp)
-	lw ra, 92(sp)
-	li t0, 96
+	li t0, 0
+	sw t0, 112(sp)
+
+	li t0, 0
+	sw t0, 116(sp)
+
+	j while_entry_0
+
+while_entry_0:
+	lw t0, 116(sp)
+	sw t0, 120(sp)
+
+	lw t0, 120(sp)
+	li t1, 2
+	slt t0, t0, t1
+	sw t0, 124(sp)
+
+	lw t0, 124(sp)
+	bnez t0, while_body_0
+	j while_end_0
+
+while_body_0:
+	li t0, 0
+	sw t0, 128(sp)
+
+	j while_entry_1
+
+while_end_0:
+	li t0, 0
+	sw t0, 116(sp)
+
+	j while_entry_2
+
+while_entry_1:
+	lw t0, 128(sp)
+	sw t0, 132(sp)
+
+	lw t0, 132(sp)
+	li t1, 3
+	slt t0, t0, t1
+	sw t0, 136(sp)
+
+	lw t0, 136(sp)
+	bnez t0, while_body_1
+	j while_end_1
+
+while_entry_2:
+	lw t0, 116(sp)
+	sw t0, 140(sp)
+
+	lw t0, 140(sp)
+	li t1, 10
+	slt t0, t0, t1
+	sw t0, 144(sp)
+
+	lw t0, 144(sp)
+	bnez t0, while_body_2
+	j while_end_2
+
+while_body_1:
+	lw t0, 112(sp)
+	sw t0, 148(sp)
+
+	lw t0, 116(sp)
+	sw t0, 152(sp)
+
+	lw t0, 128(sp)
+	sw t0, 156(sp)
+
+	addi t0, sp, 40
+	lw t1, 152(sp)
+	li t2, 12
+	mul t1, t1, t2
+	add t0, t0, t1
+	sw t0, 160(sp)
+
+	addi t0, sp, 160
+	lw t1, 156(sp)
+	li t2, 4
+	mul t1, t1, t2
+	add t0, t0, t1
+	sw t0, 164(sp)
+
+	lw t1, 164(sp)
+	lw t0, 0(t1)
+	sw t0, 168(sp)
+
+	lw t0, 148(sp)
+	lw t1, 168(sp)
+	add t0, t0, t1
+	sw t0, 172(sp)
+
+	lw t0, 116(sp)
+	sw t0, 176(sp)
+
+	lw t0, 128(sp)
+	sw t0, 180(sp)
+
+	la t0, gb_0
+	lw t1, 176(sp)
+	li t2, 12
+	mul t1, t1, t2
+	add t0, t0, t1
+	sw t0, 184(sp)
+
+	addi t0, sp, 184
+	lw t1, 180(sp)
+	li t2, 4
+	mul t1, t1, t2
+	add t0, t0, t1
+	sw t0, 188(sp)
+
+	lw t1, 188(sp)
+	lw t0, 0(t1)
+	sw t0, 192(sp)
+
+	lw t0, 172(sp)
+	lw t1, 192(sp)
+	add t0, t0, t1
+	sw t0, 196(sp)
+
+	lw t0, 196(sp)
+	sw t0, 112(sp)
+
+	lw t0, 128(sp)
+	sw t0, 200(sp)
+
+	lw t0, 200(sp)
+	li t1, 1
+	add t0, t0, t1
+	sw t0, 204(sp)
+
+	lw t0, 204(sp)
+	sw t0, 128(sp)
+
+	j while_entry_1
+
+while_end_1:
+	lw t0, 116(sp)
+	sw t0, 208(sp)
+
+	lw t0, 208(sp)
+	li t1, 1
+	add t0, t0, t1
+	sw t0, 212(sp)
+
+	lw t0, 212(sp)
+	sw t0, 116(sp)
+
+	j while_entry_0
+
+while_body_2:
+	lw t0, 112(sp)
+	sw t0, 216(sp)
+
+	lw t0, 116(sp)
+	sw t0, 220(sp)
+
+	lw t0, 216(sp)
+	lw t1, 220(sp)
+	add t0, t0, t1
+	sw t0, 224(sp)
+
+	lw t0, 116(sp)
+	sw t0, 228(sp)
+
+	addi t0, sp, 0
+	lw t1, 228(sp)
+	li t2, 4
+	mul t1, t1, t2
+	add t0, t0, t1
+	sw t0, 232(sp)
+
+	lw t0, 224(sp)
+	lw t1, 232(sp)
+	sw t0, 0(t1)
+
+	lw t0, 112(sp)
+	sw t0, 236(sp)
+
+	lw t0, 116(sp)
+	sw t0, 240(sp)
+
+	lw t0, 236(sp)
+	lw t1, 240(sp)
+	add t0, t0, t1
+	sw t0, 244(sp)
+
+	lw t0, 116(sp)
+	sw t0, 248(sp)
+
+	la t0, ga_0
+	lw t1, 248(sp)
+	li t2, 4
+	mul t1, t1, t2
+	add t0, t0, t1
+	sw t0, 252(sp)
+
+	lw t0, 244(sp)
+	lw t1, 252(sp)
+	sw t0, 0(t1)
+
+	lw t0, 116(sp)
+	sw t0, 256(sp)
+
+	lw t0, 256(sp)
+	li t1, 1
+	add t0, t0, t1
+	sw t0, 260(sp)
+
+	lw t0, 260(sp)
+	sw t0, 116(sp)
+
+	j while_entry_2
+
+while_end_2:
+	lw t0, 112(sp)
+	sw t0, 264(sp)
+
+	lw a0, 264(sp)
+	lw ra, 268(sp)
+	li t0, 272
 	add sp, sp, t0
 	ret
 

@@ -43,7 +43,7 @@ void visit(const koopa_raw_branch_t &branch);
 void visit(const koopa_raw_jump_t &jump);
 int32_t visit(const koopa_raw_call_t &call);
 std::string visit(const koopa_raw_func_arg_ref_t &func_arg);
-int32_t visit(const koopa_raw_get_elem_ptr_t &get_elem_ptr);
+int32_t visit(const koopa_raw_get_elem_ptr_t &get_elem_ptr, const koopa_raw_type_t &type);
 void visit(const koopa_raw_aggregate_t &aggregate);
 
 void getBlocksFrameSize(int32_t &size, int32_t &max_args, const koopa_raw_slice_t &bbs);
@@ -170,6 +170,7 @@ void visit(const koopa_raw_function_t &func)
 
 int32_t getAllocSize(koopa_raw_type_t type)
 {
+    // std::cout << "alloc type: " << type->tag << std::endl;
     if (type->tag == KOOPA_RTT_INT32)
     {
         return 4;
@@ -177,6 +178,10 @@ int32_t getAllocSize(koopa_raw_type_t type)
     else if (type->tag == KOOPA_RTT_ARRAY)
     {
         return type->data.array.len * getAllocSize(type->data.array.base);
+    }
+    else if (type->tag == KOOPA_RTT_POINTER)
+    {
+        return 4;
     }
 
     return -1;
@@ -294,7 +299,7 @@ void visit(const koopa_raw_value_t &value)
         std::cout << std::endl;
         break;
     case KOOPA_RVT_GET_ELEM_PTR:
-        rv2offset[value] = visit(kind.data.get_elem_ptr);
+        rv2offset[value] = visit(kind.data.get_elem_ptr, value->ty);
         std::cout << std::endl;
         break;
     default:
@@ -513,7 +518,7 @@ int32_t visit(const koopa_raw_load_t &load)
         std::cout << "\tla t0, " << load.src->name + 1 << std::endl;
         std::cout << "\tlw t0, 0(t0)\n";
     }
-    else
+    else if (load.src->kind.tag == KOOPA_RVT_ALLOC)
     {
         // 这里的src我猜应该是指向首条alloc指令??
         assert(rv2offset.find(load.src) != rv2offset.end());
@@ -526,6 +531,28 @@ int32_t visit(const koopa_raw_load_t &load)
             std::cout << "\tadd t0, t0, sp\n";
             std::cout << "\tlw t0, 0(t0)\n";
         }
+    }
+    else if (load.src->kind.tag == KOOPA_RVT_GET_ELEM_PTR)
+    {
+        assert(rv2offset.find(load.src) != rv2offset.end());
+        int32_t offset = rv2offset[load.src];
+        if (offset < 2048)
+            std::cout << "\tlw t1, " << offset << "(sp)\n";
+        else
+        {
+            std::cout << "\tli t1, " << offset << std::endl;
+            std::cout << "\tadd t1, t1, sp\n";
+            std::cout << "\tlw t1, 0(t1)\n";
+        }
+        // 绕晕了给我
+        // getelemptr对应的offset里面放的是其返回值, 即一个指针/地址
+        // 感觉可以不这么实现啊
+        std::cout << "\tlw t0, 0(t1)\n";
+    }
+    else
+    {
+        std::cout << "load src tag: " << load.src->kind.tag << std::endl;
+        assert(false);
     }
 
     if (sp_offset < 2048)
@@ -562,18 +589,34 @@ void visit(const koopa_raw_store_t &store)
         {
             std::cout << "\tla t1, " << store.dest->name + 1 << std::endl;
             std::cout << "\tsw t0, 0(t1)\n";
-
-            return;
         }
-
-        int32_t offset_dest = rv2offset[store.dest];
-        if (offset_dest < 2048)
-            std::cout << "\tsw t0, " << offset_dest << "(sp)\n";
+        else if (store.dest->kind.tag == KOOPA_RVT_GET_ELEM_PTR)
+        {
+            int32_t offset_dest = rv2offset[store.dest];
+            if (offset_dest < 2048)
+            {
+                std::cout << "\tlw t1, " << offset_dest << "(sp)\n";
+                std::cout << "\tsw t0, 0(t1)\n";
+            }
+            else
+            {
+                std::cout << "\tli t1, " << offset_dest << std::endl;
+                std::cout << "\tadd t1, t1, sp\n";
+                std::cout << "\tlw t1, 0(t1)\n";
+                std::cout << "\tsw t0, 0(t1)\n";
+            }
+        }
         else
         {
-            std::cout << "\tli t1, " << offset_dest << std::endl;
-            std::cout << "\tadd t1, t1, sp\n";
-            std::cout << "\tsw t0, 0(t1)\n";
+            int32_t offset_dest = rv2offset[store.dest];
+            if (offset_dest < 2048)
+                std::cout << "\tsw t0, " << offset_dest << "(sp)\n";
+            else
+            {
+                std::cout << "\tli t1, " << offset_dest << std::endl;
+                std::cout << "\tadd t1, t1, sp\n";
+                std::cout << "\tsw t0, 0(t1)\n";
+            }
         }
         return;
     }
@@ -589,47 +632,82 @@ void visit(const koopa_raw_store_t &store)
 
             return;
         }
-
-        int32_t offset_dest = rv2offset[store.dest];
-        if (offset_dest < 2048)
-            std::cout << "\tsw " << reg << ", " << offset_dest << "(sp)\n";
+        else if (store.dest->kind.tag == KOOPA_RVT_GET_ELEM_PTR)
+        {
+            int32_t offset_dest = rv2offset[store.dest];
+            if (offset_dest < 2048)
+            {
+                std::cout << "\tlw t1, " << offset_dest << "(sp)\n";
+                std::cout << "\tsw " << reg << ", 0(t1)\n";
+            }
+            else
+            {
+                std::cout << "\tli t1, " << offset_dest << std::endl;
+                std::cout << "\tadd t1, t1, sp\n";
+                std::cout << "\tlw t1, 0(t1)\n";
+                std::cout << "\tsw " << reg << ", 0(t1)\n";
+            }
+        }
         else
         {
-            std::cout << "\tli t1, " << offset_dest << std::endl;
-            std::cout << "\tadd t1, t1, sp\n";
-            std::cout << "\tsw " << reg << ", 0(t1)\n";
+            int32_t offset_dest = rv2offset[store.dest];
+            if (offset_dest < 2048)
+                std::cout << "\tsw " << reg << ", " << offset_dest << "(sp)\n";
+            else
+            {
+                std::cout << "\tli t1, " << offset_dest << std::endl;
+                std::cout << "\tadd t1, t1, sp\n";
+                std::cout << "\tsw " << reg << ", 0(t1)\n";
+            }
+        }
+        return;
+    }
+    else
+    {
+        // 从普通表达式取
+        int32_t offset_value = rv2offset[store.value];
+        if (offset_value < 2048)
+            std::cout << "\tlw t0, " << offset_value << "(sp)\n";
+        else
+        {
+            std::cout << "\tli t0, " << offset_value << std::endl;
+            std::cout << "\tadd t0, t0, sp\n";
+            std::cout << "\tlw t0, 0(t0)\n";
         }
 
-        return;
-    }
-
-    // 从普通表达式取
-    int32_t offset_value = rv2offset[store.value];
-    if (offset_value < 2048)
-        std::cout << "\tlw t0, " << offset_value << "(sp)\n";
-    else
-    {
-        std::cout << "\tli t0, " << offset_value << std::endl;
-        std::cout << "\tadd t0, t0, sp\n";
-        std::cout << "\tlw t0, 0(t0)\n";
-    }
-
-    if (store.dest->kind.tag == KOOPA_RVT_GLOBAL_ALLOC)
-    {
-        std::cout << "\tla t1, " << store.dest->name + 1 << std::endl;
-        std::cout << "\tsw t0, 0(t1)\n";
-
-        return;
-    }
-
-    int32_t offset_dest = rv2offset[store.dest];
-    if (offset_dest < 2048)
-        std::cout << "\tsw t0, " << offset_dest << "(sp)\n";
-    else
-    {
-        std::cout << "\tli t1, " << offset_dest << std::endl;
-        std::cout << "\tadd t1, t1, sp\n";
-        std::cout << "\tsw t0, 0(t1)\n";
+        if (store.dest->kind.tag == KOOPA_RVT_GLOBAL_ALLOC)
+        {
+            std::cout << "\tla t1, " << store.dest->name + 1 << std::endl;
+            std::cout << "\tsw t0, 0(t1)\n";
+        }
+        else if (store.dest->kind.tag == KOOPA_RVT_GET_ELEM_PTR)
+        {
+            int32_t offset_dest = rv2offset[store.dest];
+            if (offset_dest < 2048)
+            {
+                std::cout << "\tlw t1, " << offset_dest << "(sp)\n";
+                std::cout << "\tsw t0, 0(t1)\n";
+            }
+            else
+            {
+                std::cout << "\tli t1, " << offset_dest << std::endl;
+                std::cout << "\tadd t1, t1, sp\n";
+                std::cout << "\tlw t1, 0(t1)\n";
+                std::cout << "\tsw t0, 0(t1)\n";
+            }
+        }
+        else
+        {
+            int32_t offset_dest = rv2offset[store.dest];
+            if (offset_dest < 2048)
+                std::cout << "\tsw t0, " << offset_dest << "(sp)\n";
+            else
+            {
+                std::cout << "\tli t1, " << offset_dest << std::endl;
+                std::cout << "\tadd t1, t1, sp\n";
+                std::cout << "\tsw t0, 0(t1)\n";
+            }
+        }
     }
 }
 
@@ -655,8 +733,8 @@ int32_t visit(const koopa_raw_global_alloc_t &alloc, const int &global, const ko
         {
             // 这里忽略的对base的考虑, 因为只有int32类型, 简化了实现
             // lv9.2 此时要考虑多维数组, 即base就是个数组
-            int32_t size = getAllocSize(type);
-            sp_offset += size ;
+            int32_t size = getAllocSize(base);
+            sp_offset += size;
             return sp_offset - size;
         }
         else
@@ -841,20 +919,44 @@ std::string visit(const koopa_raw_func_arg_ref_t &func_arg)
     return reg;
 }
 
-int32_t visit(const koopa_raw_get_elem_ptr_t &get_elem_ptr)
+int32_t visit(const koopa_raw_get_elem_ptr_t &get_elem_ptr, const koopa_raw_type_t &type)
 {
     // 处理src
     // t0存放数组首地址
-    assert(rv2offset.find(get_elem_ptr.src) != rv2offset.end());
-    int32_t offset = rv2offset[get_elem_ptr.src];
-    if (offset < 2048)
+    if (get_elem_ptr.src->kind.tag == KOOPA_RVT_GLOBAL_ALLOC)
     {
-        std::cout << "\taddi t0, sp, " << offset << std::endl;
+        // 全局数组
+        std::cout << "\tla t0, " << get_elem_ptr.src->name + 1 << std::endl;
+    }
+    else if(get_elem_ptr.src->kind.tag == KOOPA_RVT_GET_ELEM_PTR)
+    {
+        // 多维数组逐级解引用
+        int32_t offset = rv2offset[get_elem_ptr.src];
+        if (offset < 2048)
+        {
+            std::cout << "\taddi t0, sp, " << offset << std::endl;
+            std::cout << "\tlw t0, 0(t0)\n";
+        }
+        else
+        {
+            std::cout << "\tli t1, " << offset << std::endl;
+            std::cout << "\tadd t0, sp, t1" << std::endl;
+            std::cout << "\tlw t0, 0(t0)\n";
+        }
     }
     else
     {
-        std::cout << "\tli t1, " << offset << std::endl;
-        std::cout << "\tadd t0, sp, t1" << std::endl;
+        assert(rv2offset.find(get_elem_ptr.src) != rv2offset.end());
+        int32_t offset = rv2offset[get_elem_ptr.src];
+        if (offset < 2048)
+        {
+            std::cout << "\taddi t0, sp, " << offset << std::endl;
+        }
+        else
+        {
+            std::cout << "\tli t1, " << offset << std::endl;
+            std::cout << "\tadd t0, sp, t1" << std::endl;
+        }
     }
 
     // 处理index
@@ -880,8 +982,12 @@ int32_t visit(const koopa_raw_get_elem_ptr_t &get_elem_ptr)
         }
     }
     // 4是base的大小
-    std::cout << "\tli t2, "
-              << "4" << std::endl;
+    // 多维数组这里不对的
+    // 怎么知道应该偏移多少???? => type
+    // 该指令的返回值一定是指针, 重点在于base的大小
+    assert(type->tag == KOOPA_RTT_POINTER);
+    int base_size = getAllocSize(type->data.pointer.base);
+    std::cout << "\tli t2, " << base_size << std::endl;
     std::cout << "\tmul t1, t1, t2\n";
 
     // 得到最终地址t0, 放到栈上
@@ -906,12 +1012,12 @@ void visit(const koopa_raw_aggregate_t &aggregate)
     for (int i = 0; i < len; i++)
     {
         auto elem = reinterpret_cast<koopa_raw_value_t>(aggregate.elems.buffer[i]);
-        if(elem->kind.tag == KOOPA_RVT_INTEGER)
-        {   
+        if (elem->kind.tag == KOOPA_RVT_INTEGER)
+        {
             int value = elem->kind.data.integer.value;
             std::cout << "\t.word " << value << std::endl;
         }
-        else if(elem->kind.tag == KOOPA_RVT_AGGREGATE)
+        else if (elem->kind.tag == KOOPA_RVT_AGGREGATE)
         {
             visit(elem->kind.data.aggregate);
         }
