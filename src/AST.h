@@ -80,26 +80,15 @@ static std::stack<std::string> while_end;
 // 定义左值类型
 enum LVAL_TYPE
 {
-	LVAL_CONST, // 常量, 可以直接求值
-	LVAL_VAR, // 变量or数组完全解引用, 本质是一个指针: *i32
-	LVAL_ARRAY, // 全数组, 即数组名
+	LVAL_CONST,		   // 常量, 可以直接求值
+	LVAL_VAR,		   // 变量or数组完全解引用, 本质是一个指针: *i32
+	LVAL_ARRAY,		   // 全数组, 即数组名
 	LVAL_PARTIAL_ARRAY // 部分数组, 即数组部分解引用, 子数组
 };
-
 
 // 对于return; 语句
 // 若为int函数, 自动补上返回值0
 static bool cur_func_ret;
-
-
-
-
-
-
-
-
-
-
 
 // 类声明
 class InitValAST;
@@ -183,7 +172,7 @@ public:
 	std::string ident;
 	std::vector<std::unique_ptr<BaseAST>> exps;
 
-	std::string lvalDump(std::string &_ident, LVAL_TYPE& lval_type)
+	std::string lvalDump(std::string &_ident, LVAL_TYPE &lval_type)
 	{
 		// 直接返回LVal的类型好了
 		_ident = ident;
@@ -206,11 +195,11 @@ public:
 			{
 				lval_type = LVAL_TYPE::LVAL_ARRAY;
 			}
-			else if(symbol_table[ident].tag == VALUE::CONST)
+			else if (symbol_table[ident].tag == VALUE::CONST)
 			{
 				lval_type = LVAL_TYPE::LVAL_CONST;
 			}
-			else if(symbol_table[ident].tag == VALUE::VAR)
+			else if (symbol_table[ident].tag == VALUE::VAR)
 			{
 				lval_type = LVAL_TYPE::LVAL_VAR;
 			}
@@ -294,7 +283,7 @@ public:
 		//	 (1) 普通表达式里, 一定是最终的elem, 即维度是取完整了的
 		//	 (2) 函数传参可以传数组参数, 即维度没有取完, 这个要单独讨论
 		// 2.赋值语句左侧
-		
+
 		// lv9.3
 		// 重写了左值dump, 见上
 		// 本函数不会再被调用
@@ -829,7 +818,7 @@ public:
 
 			// 这里得根据当前函数的类型判断????
 			// 注意这里只能处理int函数
-			if(cur_func_ret)
+			if (cur_func_ret)
 				std::cout << "\tret 0\n";
 			else
 				std::cout << "\tret\n";
@@ -838,7 +827,6 @@ public:
 		{
 			// std::cout << "stmt dump...lval\n";
 			std::string exp_string = exp->Dump();
-
 
 			// 此时lval必定是变量, 否则是语义错误
 			// lv9 lval还可能是数组变量, 此时应该写入地址
@@ -927,34 +915,34 @@ public:
 			assert(st_tmp);
 			auto &symbol_table = st_tmp->table;
 
-			if(lval_type == LVAL_TYPE::LVAL_CONST)
-			{	
+			if (lval_type == LVAL_TYPE::LVAL_CONST)
+			{
 				return std::to_string(lval->getValue());
 			}
-			else if(lval_type == LVAL_TYPE::LVAL_VAR)
+			else if (lval_type == LVAL_TYPE::LVAL_VAR)
 			{
 				std::cout << "\t%" << reg_cnt << " = load " << ret << std::endl;
 				reg_cnt++;
 				return "%" + std::to_string(reg_cnt - 1);
 			}
-			else if(lval_type == LVAL_TYPE::LVAL_ARRAY)
+			else if (lval_type == LVAL_TYPE::LVAL_ARRAY)
 			{
 				// 必定是传参
-				if(symbol_table[ident].tag == VALUE::ARRAY || symbol_table[ident].tag == VALUE::CONST_ARRAY)
+				if (symbol_table[ident].tag == VALUE::ARRAY || symbol_table[ident].tag == VALUE::CONST_ARRAY)
 				{
 					std::cout << "\t%" << reg_cnt << " = getelemptr " << ret << ", 0" << std::endl;
 				}
-				else if(symbol_table[ident].tag == VALUE::ARRAY_PARAM)
+				else if (symbol_table[ident].tag == VALUE::ARRAY_PARAM)
 				{
 					std::cout << "\t%" << reg_cnt << " = load " << ret << std::endl;
 					reg_cnt++;
-					std::cout << "\t%" << reg_cnt << " = getptr %" << reg_cnt - 1  << ", 0" << std::endl;
+					std::cout << "\t%" << reg_cnt << " = getptr %" << reg_cnt - 1 << ", 0" << std::endl;
 				}
-				
+
 				reg_cnt++;
 				return "%" + std::to_string(reg_cnt - 1);
 			}
-			else if(lval_type == LVAL_TYPE::LVAL_PARTIAL_ARRAY)
+			else if (lval_type == LVAL_TYPE::LVAL_PARTIAL_ARRAY)
 			{
 				// 必定是传参
 				std::cout << "\t%" << reg_cnt << " = getelemptr " << ret << ", 0" << std::endl;
@@ -965,7 +953,6 @@ public:
 			{
 				assert(false);
 			}
-			
 		}
 		else
 		{
@@ -1451,23 +1438,52 @@ public:
 		else
 		{
 			std::string land = land_exp->Dump();
-			std::string eq = eq_exp->Dump();
 
-			if (type == LAND)
-			{
-				std::cout << "\t%" << reg_cnt << " = ne " << land << ", " << 0 << std::endl;
-				reg_cnt++;
-				std::cout << "\t%" << reg_cnt << " = ne " << eq << ", " << 0 << std::endl;
-				reg_cnt++;
-				std::cout << "\t%" << reg_cnt << " = and "
-						  << "%" << reg_cnt - 1 << ", "
-						  << "%" << reg_cnt - 2 << std::endl;
-			}
-			else
-				std::cout << "land exp error" << std::endl;
+			// 短路求值
+			uint32_t now_if_cnt = if_cnt;
+			if_cnt++;
+			
+			// 声明一个临时变量, 赋0
+			std::cout << "\t@result_" << now_if_cnt << " = alloc i32\n";
+			std::cout << "\tstore " << 0 << " , @result_" << now_if_cnt << std::endl;
 
+			// 比较 lhs ? 0
+			// 若 lhs == 0, 则不需要继续求rhs, 跳转land0
+			// 若 lhs != 0, 则需要继续求rhs, 跳转land1
+			std::cout << "\t%" << reg_cnt << " = eq 0, " << land << std::endl;
 			reg_cnt++;
+			std::cout << "\tbr %" << reg_cnt - 1 << ", %land0_" << now_if_cnt << ", %land1_" << now_if_cnt << std::endl;
+
+			// land1:
+			std::cout << "%land1_" << now_if_cnt << ":\n";
+			std::string eq = eq_exp->Dump();
+			std::cout << "\t%" << reg_cnt << " = ne 0, " << eq << std::endl;
+			reg_cnt++;
+			std::cout << "\tstore %" << reg_cnt - 1 << " , @result_" << now_if_cnt << std::endl;
+			std::cout << "\tjump %land0_" << now_if_cnt << std::endl;
+
+			// land0:
+			// 直接返回result中值
+			std::cout << "%land0_" << now_if_cnt << ":\n";
+			std::cout << "\t%" << reg_cnt << " = load @result_" << now_if_cnt << std::endl;
+			reg_cnt++;
+
 			return "%" + std::to_string(reg_cnt - 1);
+
+
+
+			// std::string eq = eq_exp->Dump();
+
+			// std::cout << "\t%" << reg_cnt << " = ne " << land << ", " << 0 << std::endl;
+			// reg_cnt++;
+			// std::cout << "\t%" << reg_cnt << " = ne " << eq << ", " << 0 << std::endl;
+			// reg_cnt++;
+			// std::cout << "\t%" << reg_cnt << " = and "
+			// 		  << "%" << reg_cnt - 1 << ", "
+			// 		  << "%" << reg_cnt - 2 << std::endl;
+
+			// reg_cnt++;
+			// return "%" + std::to_string(reg_cnt - 1);
 		}
 
 		return std::string();
@@ -1509,23 +1525,51 @@ public:
 		else
 		{
 			std::string lor = lor_exp->Dump();
-			std::string land = land_exp->Dump();
+			
 
-			if (type == LOR)
-			{
-				std::cout << "\t%" << reg_cnt << " = ne " << lor << ", " << 0 << std::endl;
-				reg_cnt++;
-				std::cout << "\t%" << reg_cnt << " = ne " << land << ", " << 0 << std::endl;
-				reg_cnt++;
-				std::cout << "\t%" << reg_cnt << " = or "
-						  << "%" << reg_cnt - 1 << ", "
-						  << "%" << reg_cnt - 2 << std::endl;
-			}
-			else
-				std::cout << "lor exp error" << std::endl;
 
+			// 短路求值
+			uint32_t now_if_cnt = if_cnt;
+			if_cnt++;
+			
+			// 声明一个临时变量, 赋1
+			std::cout << "\t@result_" << now_if_cnt << " = alloc i32\n";
+			std::cout << "\tstore " << 1 << " , @result_" << now_if_cnt << std::endl;
+
+			// 比较 lhs ? 0
+			// 若 lhs == 0, 则需要继续求rhs, 跳转到lor0
+			// 若 lhs != 0, 则不需要继续求, result就是1, 跳转到lor1
+			std::cout << "\t%" << reg_cnt << " = eq 0, " << lor << std::endl;
 			reg_cnt++;
+			std::cout << "\tbr %" << reg_cnt - 1 << ", %lor0_" << now_if_cnt << ", %lor1_" << now_if_cnt << std::endl;
+
+			// lor0:
+			std::cout << "%lor0_" << now_if_cnt << ":\n";
+			std::string land = land_exp->Dump();
+			std::cout << "\t%" << reg_cnt << " = ne 0, " << land << std::endl;
+			reg_cnt++;
+			std::cout << "\tstore %" << reg_cnt - 1 << " , @result_" << now_if_cnt << std::endl;
+			std::cout << "\tjump %lor1_" << now_if_cnt << std::endl;
+
+			// lor1:
+			// 直接返回result的值
+			std::cout << "%lor1_" << now_if_cnt << ":\n";
+			std::cout << "\t%" << reg_cnt << " = load @result_" << now_if_cnt << std::endl;
+			reg_cnt++;
+
 			return "%" + std::to_string(reg_cnt - 1);
+
+
+			// std::cout << "\t%" << reg_cnt << " = ne " << lor << ", " << 0 << std::endl;
+			// reg_cnt++;
+			// std::cout << "\t%" << reg_cnt << " = ne " << land << ", " << 0 << std::endl;
+			// reg_cnt++;
+			// std::cout << "\t%" << reg_cnt << " = or "
+			// 		  << "%" << reg_cnt - 1 << ", "
+			// 		  << "%" << reg_cnt - 2 << std::endl;
+
+			// reg_cnt++;
+			// return "%" + std::to_string(reg_cnt - 1);
 		}
 
 		return std::string();

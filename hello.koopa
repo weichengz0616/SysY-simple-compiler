@@ -7,27 +7,42 @@ decl @putarray(i32, *i32)
 decl @starttime()
 decl @stoptime()
 
+fun @t(): i32
+{
+%entry:
+	ret 1
+}
+
+fun @f(): i32
+{
+%entry:
+	ret 0
+}
+
 fun @main(): i32
 {
 %entry:
-	@x_2 = alloc [i32, 507]
-	@sum_2 = alloc i32
-	store 0 , @sum_2
-	@a_2 = alloc i32
-	store 222 , @a_2
-	%0 = load @sum_2
-	call @putint(%0)
+	@sum_6 = alloc i32
+	store 0 , @sum_6
+	%0 = load @sum_6
+	%1 = call @t()
+	@result_0 = alloc i32
+	store 1 , @result_0
+	%2 = eq 0, %1
+	br 2, %lor0_0, %lor1_0
+%lor0_0:
+	%3 = call @f()
+	%4 = ne 0, %3
+	store %4 , @result_0
+	jump %lor1_0
+%lor1_0:
+	%5 = load @result_0
+	%6 = add %0, %5
+	store %6 , @sum_6
+	%7 = load @sum_6
+	call @putint(%7)
 	call @putch(10)
-	%1 = load @a_2
-	call @putint(%1)
-	call @putch(10)
-	%2 = load @sum_2
-	%3 = load @a_2
-	%4 = add %2, %3
-	store %4 , @sum_2
-	%5 = load @sum_2
-	call @putint(%5)
-	call @putch(10)
-	ret 0
+	%8 = load @sum_6
+	ret %8
 }
 
