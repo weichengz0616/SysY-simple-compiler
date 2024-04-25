@@ -44,6 +44,7 @@ void visit(const koopa_raw_jump_t &jump);
 int32_t visit(const koopa_raw_call_t &call);
 std::string visit(const koopa_raw_func_arg_ref_t &func_arg);
 int32_t visit(const koopa_raw_get_elem_ptr_t &get_elem_ptr, const koopa_raw_type_t &type);
+int32_t visit(const koopa_raw_get_ptr_t &get_ptr, const koopa_raw_type_t &type);
 void visit(const koopa_raw_aggregate_t &aggregate);
 
 void getBlocksFrameSize(int32_t &size, int32_t &max_args, const koopa_raw_slice_t &bbs);
@@ -212,14 +213,9 @@ void getInstsFrameSize(int32_t &size, int32_t &max_args, const koopa_raw_slice_t
             {
                 size += getAllocSize(ptr->ty->data.pointer.base);
             }
-            else if (ptr->kind.tag == KOOPA_RVT_GET_ELEM_PTR)
-            {
-                size += 4;
-            }
             else
             {
-                std::cout << ptr->kind.tag << std::endl;
-                assert(false);
+                size += 4;
             }
         }
 
@@ -300,6 +296,10 @@ void visit(const koopa_raw_value_t &value)
         break;
     case KOOPA_RVT_GET_ELEM_PTR:
         rv2offset[value] = visit(kind.data.get_elem_ptr, value->ty);
+        std::cout << std::endl;
+        break;
+    case KOOPA_RVT_GET_PTR:
+        rv2offset[value] = visit(kind.data.get_ptr, value->ty);
         std::cout << std::endl;
         break;
     default:
@@ -549,6 +549,20 @@ int32_t visit(const koopa_raw_load_t &load)
         // 感觉可以不这么实现啊
         std::cout << "\tlw t0, 0(t1)\n";
     }
+    else if (load.src->kind.tag == KOOPA_RVT_GET_PTR)
+    {
+        assert(rv2offset.find(load.src) != rv2offset.end());
+        int32_t offset = rv2offset[load.src];
+        if (offset < 2048)
+            std::cout << "\tlw t1, " << offset << "(sp)\n";
+        else
+        {
+            std::cout << "\tli t1, " << offset << std::endl;
+            std::cout << "\tadd t1, t1, sp\n";
+            std::cout << "\tlw t1, 0(t1)\n";
+        }
+        std::cout << "\tlw t0, 0(t1)\n";
+    }
     else
     {
         std::cout << "load src tag: " << load.src->kind.tag << std::endl;
@@ -590,7 +604,19 @@ void visit(const koopa_raw_store_t &store)
             std::cout << "\tla t1, " << store.dest->name + 1 << std::endl;
             std::cout << "\tsw t0, 0(t1)\n";
         }
-        else if (store.dest->kind.tag == KOOPA_RVT_GET_ELEM_PTR)
+        else if(store.dest->kind.tag == KOOPA_RVT_ALLOC)
+        {
+            int32_t offset_dest = rv2offset[store.dest];
+            if (offset_dest < 2048)
+                std::cout << "\tsw t0, " << offset_dest << "(sp)\n";
+            else
+            {
+                std::cout << "\tli t1, " << offset_dest << std::endl;
+                std::cout << "\tadd t1, t1, sp\n";
+                std::cout << "\tsw t0, 0(t1)\n";
+            }
+        }
+        else
         {
             int32_t offset_dest = rv2offset[store.dest];
             if (offset_dest < 2048)
@@ -603,18 +629,6 @@ void visit(const koopa_raw_store_t &store)
                 std::cout << "\tli t1, " << offset_dest << std::endl;
                 std::cout << "\tadd t1, t1, sp\n";
                 std::cout << "\tlw t1, 0(t1)\n";
-                std::cout << "\tsw t0, 0(t1)\n";
-            }
-        }
-        else
-        {
-            int32_t offset_dest = rv2offset[store.dest];
-            if (offset_dest < 2048)
-                std::cout << "\tsw t0, " << offset_dest << "(sp)\n";
-            else
-            {
-                std::cout << "\tli t1, " << offset_dest << std::endl;
-                std::cout << "\tadd t1, t1, sp\n";
                 std::cout << "\tsw t0, 0(t1)\n";
             }
         }
@@ -632,7 +646,19 @@ void visit(const koopa_raw_store_t &store)
 
             return;
         }
-        else if (store.dest->kind.tag == KOOPA_RVT_GET_ELEM_PTR)
+        else if(store.dest->kind.tag == KOOPA_RVT_ALLOC)
+        {
+            int32_t offset_dest = rv2offset[store.dest];
+            if (offset_dest < 2048)
+                std::cout << "\tsw " << reg << ", " << offset_dest << "(sp)\n";
+            else
+            {
+                std::cout << "\tli t1, " << offset_dest << std::endl;
+                std::cout << "\tadd t1, t1, sp\n";
+                std::cout << "\tsw " << reg << ", 0(t1)\n";
+            }
+        }
+        else
         {
             int32_t offset_dest = rv2offset[store.dest];
             if (offset_dest < 2048)
@@ -645,18 +671,6 @@ void visit(const koopa_raw_store_t &store)
                 std::cout << "\tli t1, " << offset_dest << std::endl;
                 std::cout << "\tadd t1, t1, sp\n";
                 std::cout << "\tlw t1, 0(t1)\n";
-                std::cout << "\tsw " << reg << ", 0(t1)\n";
-            }
-        }
-        else
-        {
-            int32_t offset_dest = rv2offset[store.dest];
-            if (offset_dest < 2048)
-                std::cout << "\tsw " << reg << ", " << offset_dest << "(sp)\n";
-            else
-            {
-                std::cout << "\tli t1, " << offset_dest << std::endl;
-                std::cout << "\tadd t1, t1, sp\n";
                 std::cout << "\tsw " << reg << ", 0(t1)\n";
             }
         }
@@ -680,7 +694,19 @@ void visit(const koopa_raw_store_t &store)
             std::cout << "\tla t1, " << store.dest->name + 1 << std::endl;
             std::cout << "\tsw t0, 0(t1)\n";
         }
-        else if (store.dest->kind.tag == KOOPA_RVT_GET_ELEM_PTR)
+        else if(store.dest->kind.tag == KOOPA_RVT_ALLOC)
+        {
+            int32_t offset_dest = rv2offset[store.dest];
+            if (offset_dest < 2048)
+                std::cout << "\tsw t0, " << offset_dest << "(sp)\n";
+            else
+            {
+                std::cout << "\tli t1, " << offset_dest << std::endl;
+                std::cout << "\tadd t1, t1, sp\n";
+                std::cout << "\tsw t0, 0(t1)\n";
+            }
+        }
+        else
         {
             int32_t offset_dest = rv2offset[store.dest];
             if (offset_dest < 2048)
@@ -693,18 +719,6 @@ void visit(const koopa_raw_store_t &store)
                 std::cout << "\tli t1, " << offset_dest << std::endl;
                 std::cout << "\tadd t1, t1, sp\n";
                 std::cout << "\tlw t1, 0(t1)\n";
-                std::cout << "\tsw t0, 0(t1)\n";
-            }
-        }
-        else
-        {
-            int32_t offset_dest = rv2offset[store.dest];
-            if (offset_dest < 2048)
-                std::cout << "\tsw t0, " << offset_dest << "(sp)\n";
-            else
-            {
-                std::cout << "\tli t1, " << offset_dest << std::endl;
-                std::cout << "\tadd t1, t1, sp\n";
                 std::cout << "\tsw t0, 0(t1)\n";
             }
         }
@@ -724,12 +738,7 @@ int32_t visit(const koopa_raw_global_alloc_t &alloc, const int &global, const ko
         // 再次get到KOOPA IR是强类型的, 指令是有返回值的, 即type, alloc指令的返回值是指针类型
         // 指针本身又有个基类型, 即指针是指向什么数据的
         auto base = type->data.pointer.base;
-        if (base->tag == KOOPA_RTT_INT32)
-        {
-            sp_offset += 4;
-            return sp_offset - 4;
-        }
-        else if (base->tag == KOOPA_RTT_ARRAY)
+        if (base->tag == KOOPA_RTT_ARRAY)
         {
             // 这里忽略的对base的考虑, 因为只有int32类型, 简化了实现
             // lv9.2 此时要考虑多维数组, 即base就是个数组
@@ -739,8 +748,8 @@ int32_t visit(const koopa_raw_global_alloc_t &alloc, const int &global, const ko
         }
         else
         {
-            std::cout << "h: " << base->tag << std::endl;
-            assert(false);
+            sp_offset += 4;
+            return sp_offset - 4;
         }
     }
     else if (global == 1)
@@ -815,6 +824,7 @@ int32_t visit(const koopa_raw_call_t &call)
     // 参数不一定是数值!!!
     // 这跟前面一脉相承, 传参时可以传表达式/函数调用
     // 0----integer  12----binary  15----call 8----load
+    // lv9.3 参数可以是数组, 即指针
     for (size_t i = 0; i < call.args.len; i++)
     {
 
@@ -851,7 +861,7 @@ int32_t visit(const koopa_raw_call_t &call)
                 std::cout << "\tli t0, " << arg->kind.data.integer.value << std::endl;
                 std::cout << "\tsw t0, " << (i - 8) * 4 << "(sp)\n";
             }
-            else if (arg->kind.tag == KOOPA_RVT_BINARY)
+            else
             {
                 assert(rv2offset.find(arg) != rv2offset.end());
                 auto offset = rv2offset[arg];
@@ -928,7 +938,21 @@ int32_t visit(const koopa_raw_get_elem_ptr_t &get_elem_ptr, const koopa_raw_type
         // 全局数组
         std::cout << "\tla t0, " << get_elem_ptr.src->name + 1 << std::endl;
     }
-    else if(get_elem_ptr.src->kind.tag == KOOPA_RVT_GET_ELEM_PTR)
+    else if(get_elem_ptr.src->kind.tag == KOOPA_RVT_ALLOC)
+    {
+        assert(rv2offset.find(get_elem_ptr.src) != rv2offset.end());
+        int32_t offset = rv2offset[get_elem_ptr.src];
+        if (offset < 2048)
+        {
+            std::cout << "\taddi t0, sp, " << offset << std::endl;
+        }
+        else
+        {
+            std::cout << "\tli t1, " << offset << std::endl;
+            std::cout << "\tadd t0, sp, t1" << std::endl;
+        }
+    }
+    else
     {
         // 多维数组逐级解引用
         int32_t offset = rv2offset[get_elem_ptr.src];
@@ -942,20 +966,6 @@ int32_t visit(const koopa_raw_get_elem_ptr_t &get_elem_ptr, const koopa_raw_type
             std::cout << "\tli t1, " << offset << std::endl;
             std::cout << "\tadd t0, sp, t1" << std::endl;
             std::cout << "\tlw t0, 0(t0)\n";
-        }
-    }
-    else
-    {
-        assert(rv2offset.find(get_elem_ptr.src) != rv2offset.end());
-        int32_t offset = rv2offset[get_elem_ptr.src];
-        if (offset < 2048)
-        {
-            std::cout << "\taddi t0, sp, " << offset << std::endl;
-        }
-        else
-        {
-            std::cout << "\tli t1, " << offset << std::endl;
-            std::cout << "\tadd t0, sp, t1" << std::endl;
         }
     }
 
@@ -985,6 +995,91 @@ int32_t visit(const koopa_raw_get_elem_ptr_t &get_elem_ptr, const koopa_raw_type
     // 多维数组这里不对的
     // 怎么知道应该偏移多少???? => type
     // 该指令的返回值一定是指针, 重点在于base的大小
+    assert(type->tag == KOOPA_RTT_POINTER);
+    int base_size = getAllocSize(type->data.pointer.base);
+    std::cout << "\tli t2, " << base_size << std::endl;
+    std::cout << "\tmul t1, t1, t2\n";
+
+    // 得到最终地址t0, 放到栈上
+    std::cout << "\tadd t0, t0, t1\n";
+    if (sp_offset < 2048)
+    {
+        std::cout << "\tsw t0, " << sp_offset << "(sp)\n";
+    }
+    else
+    {
+        std::cout << "\tli t1, " << sp_offset << std::endl;
+        std::cout << "\tadd t1, t1, sp\n";
+        std::cout << "\tsw t0, 0(t1)\n";
+    }
+    sp_offset += 4;
+    return sp_offset - 4;
+}
+
+int32_t visit(const koopa_raw_get_ptr_t &get_ptr, const koopa_raw_type_t &type)
+{
+    // 处理src
+    // t0存放数组首地址
+    if (get_ptr.src->kind.tag == KOOPA_RVT_GLOBAL_ALLOC)
+    {
+        // 全局数组
+        std::cout << "\tla t0, " << get_ptr.src->name + 1 << std::endl;
+    }
+    else if(get_ptr.src->kind.tag == KOOPA_RVT_ALLOC)
+    {
+        // 只有alloc的这个offset是真正的地址
+        assert(rv2offset.find(get_ptr.src) != rv2offset.end());
+        int32_t offset = rv2offset[get_ptr.src];
+        if (offset < 2048)
+        {
+            std::cout << "\taddi t0, sp, " << offset << std::endl;
+        }
+        else
+        {
+            std::cout << "\tli t1, " << offset << std::endl;
+            std::cout << "\tadd t0, sp, t1" << std::endl;
+        }
+    }
+    else
+    {
+        // 其他的offset都是放地址的地址
+        int32_t offset = rv2offset[get_ptr.src];
+        if (offset < 2048)
+        {
+            std::cout << "\taddi t0, sp, " << offset << std::endl;
+            std::cout << "\tlw t0, 0(t0)\n";
+        }
+        else
+        {
+            std::cout << "\tli t1, " << offset << std::endl;
+            std::cout << "\tadd t0, sp, t1" << std::endl;
+            std::cout << "\tlw t0, 0(t0)\n";
+        }
+    }
+    
+
+    // 处理index
+    // t1存放偏移量
+    if (get_ptr.index->kind.tag == KOOPA_RVT_INTEGER)
+    {
+        std::cout << "\tli t1, " << get_ptr.index->kind.data.integer.value << std::endl;
+    }
+    else
+    {
+        assert(rv2offset.find(get_ptr.index) != rv2offset.end());
+        int32_t offset = rv2offset[get_ptr.index];
+        if (offset < 2048)
+        {
+            std::cout << "\tlw t1, " << offset << "(sp)\n";
+        }
+        else
+        {
+
+            std::cout << "\tli t3, " << offset << std::endl;
+            std::cout << "\tadd t3, t3, sp\n";
+            std::cout << "\tlw t1, 0(t3)\n";
+        }
+    }
     assert(type->tag == KOOPA_RTT_POINTER);
     int base_size = getAllocSize(type->data.pointer.base);
     std::cout << "\tli t2, " << base_size << std::endl;
