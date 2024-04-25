@@ -423,8 +423,8 @@ int32_t visit(const koopa_raw_binary_t &binary)
     else if (binary.rhs->kind.tag == KOOPA_RVT_GLOBAL_ALLOC)
     {
         // 读取的是全局变量
-        std::cout << "\tla t0, " << binary.rhs->name + 1 << std::endl;
-        std::cout << "\tlw t1, 0(t0)\n";
+        std::cout << "\tla t1, " << binary.rhs->name + 1 << std::endl;
+        std::cout << "\tlw t1, 0(t1)\n";
         lhs_reg = "t1";
     }
     else
@@ -435,9 +435,9 @@ int32_t visit(const koopa_raw_binary_t &binary)
             std::cout << "\tlw t1, " << offset << "(sp)\n";
         else
         {
-            std::cout << "\tli t0, " << offset << std::endl;
-            std::cout << "\tadd t0, t0, sp\n";
-            std::cout << "\tlw t1, 0(t0)\n";
+            std::cout << "\tli t1, " << offset << std::endl;
+            std::cout << "\tadd t1, t1, sp\n";
+            std::cout << "\tlw t1, 0(t1)\n";
         }
         rhs_reg = "t1";
     }

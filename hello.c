@@ -427,10 +427,7 @@
 //     return 0;
 // }
 
-void f(int arr[])
-{
-  arr[777] = 888;
-}
+
 
 void init(int arr[][10][10]) {
   int i = 0;
