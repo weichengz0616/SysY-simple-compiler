@@ -7,42 +7,247 @@ decl @putarray(i32, *i32)
 decl @starttime()
 decl @stoptime()
 
-fun @t(): i32
+global @n_0 = alloc i32, zeroinit
+
+fun @swap(%array_1: *i32, %i_1: i32, %j_1: i32): i32
 {
 %entry:
-	ret 1
+	@array_1 = alloc *i32
+	store %array_1 , @array_1
+	@i_1 = alloc i32
+	store %i_1 , @i_1
+	@j_1 = alloc i32
+	store %j_1 , @j_1
+	@temp_2 = alloc i32
+	%0 = load @i_1
+	%1 = load @array_1
+	%2 = getptr %1, %0
+	%3 = load %2
+	store %3 , @temp_2
+	%4 = load @j_1
+	%5 = load @array_1
+	%6 = getptr %5, %4
+	%7 = load %6
+	%8 = load @i_1
+	%9 = load @array_1
+	%10 = getptr %9, %8
+	store %7 , %10
+	%11 = load @temp_2
+	%12 = load @j_1
+	%13 = load @array_1
+	%14 = getptr %13, %12
+	store %11 , %14
+	ret 0
 }
 
-fun @f(): i32
+fun @heap_ajust(%arr_3: *i32, %start_3: i32, %end_3: i32): i32
 {
 %entry:
+	@arr_3 = alloc *i32
+	store %arr_3 , @arr_3
+	@start_3 = alloc i32
+	store %start_3 , @start_3
+	@end_3 = alloc i32
+	store %end_3 , @end_3
+	@dad_4 = alloc i32
+	%15 = load @start_3
+	store %15 , @dad_4
+	@son_4 = alloc i32
+	%16 = load @dad_4
+	%17 = mul %16, 2
+	%18 = add %17, 1
+	store %18 , @son_4
+	jump %while_entry_0
+%while_entry_0:
+	%19 = load @son_4
+	%20 = load @end_3
+	%21 = add %20, 1
+	%22 = lt %19, %21
+	br %22, %while_body_0, %while_end_0
+%while_body_0:
+	%23 = load @son_4
+	%24 = load @end_3
+	%25 = lt %23, %24
+	@result_2 = alloc i32
+	store 0 , @result_2
+	%26 = eq 0, %25
+	br %26, %land0_2, %land1_2
+%land1_2:
+	%27 = load @son_4
+	%28 = load @arr_3
+	%29 = getptr %28, %27
+	%30 = load %29
+	%31 = load @son_4
+	%32 = add %31, 1
+	%33 = load @arr_3
+	%34 = getptr %33, %32
+	%35 = load %34
+	%36 = lt %30, %35
+	%37 = ne 0, %36
+	store %37 , @result_2
+	jump %land0_2
+%land0_2:
+	%38 = load @result_2
+	br %38, %then_1, %end_1
+%then_1:
+	%39 = load @son_4
+	%40 = add %39, 1
+	store %40 , @son_4
+	jump %end_1
+%end_1:
+	%41 = load @dad_4
+	%42 = load @arr_3
+	%43 = getptr %42, %41
+	%44 = load %43
+	%45 = load @son_4
+	%46 = load @arr_3
+	%47 = getptr %46, %45
+	%48 = load %47
+	%49 = gt %44, %48
+	br %49, %then_3, %else_3
+%then_3:
+	ret 0
+%else_3:
+	%50 = load @arr_3
+	%51 = getptr %50, 0
+	%52 = load @dad_4
+	%53 = load @son_4
+	%54 = call @swap(%51, %52, %53)
+	store %54 , @dad_4
+	%55 = load @son_4
+	store %55 , @dad_4
+	%56 = load @dad_4
+	%57 = mul %56, 2
+	%58 = add %57, 1
+	store %58 , @son_4
+	jump %end_3
+%end_3:
+	jump %while_entry_0
+%while_end_0:
+	ret 0
+}
+
+fun @heap_sort(%arr_7: *i32, %len_7: i32): i32
+{
+%entry:
+	@arr_7 = alloc *i32
+	store %arr_7 , @arr_7
+	@len_7 = alloc i32
+	store %len_7 , @len_7
+	@i_8 = alloc i32
+	@tmp_8 = alloc i32
+	%59 = load @len_7
+	%60 = div %59, 2
+	%61 = sub %60, 1
+	store %61 , @i_8
+	jump %while_entry_4
+%while_entry_4:
+	%62 = load @i_8
+	%63 = sub 0, 1
+	%64 = gt %62, %63
+	br %64, %while_body_4, %while_end_4
+%while_body_4:
+	%65 = load @len_7
+	%66 = sub %65, 1
+	store %66 , @tmp_8
+	%67 = load @arr_7
+	%68 = getptr %67, 0
+	%69 = load @i_8
+	%70 = load @tmp_8
+	%71 = call @heap_ajust(%68, %69, %70)
+	store %71 , @tmp_8
+	%72 = load @i_8
+	%73 = sub %72, 1
+	store %73 , @i_8
+	jump %while_entry_4
+%while_end_4:
+	%74 = load @len_7
+	%75 = sub %74, 1
+	store %75 , @i_8
+	jump %while_entry_5
+%while_entry_5:
+	%76 = load @i_8
+	%77 = gt %76, 0
+	br %77, %while_body_5, %while_end_5
+%while_body_5:
+	@tmp0_10 = alloc i32
+	store 0 , @tmp0_10
+	%78 = load @arr_7
+	%79 = getptr %78, 0
+	%80 = load @tmp0_10
+	%81 = load @i_8
+	%82 = call @swap(%79, %80, %81)
+	store %82 , @tmp_8
+	%83 = load @i_8
+	%84 = sub %83, 1
+	store %84 , @tmp_8
+	%85 = load @arr_7
+	%86 = getptr %85, 0
+	%87 = load @tmp0_10
+	%88 = load @tmp_8
+	%89 = call @heap_ajust(%86, %87, %88)
+	store %89 , @tmp_8
+	%90 = load @i_8
+	%91 = sub %90, 1
+	store %91 , @i_8
+	jump %while_entry_5
+%while_end_5:
 	ret 0
 }
 
 fun @main(): i32
 {
 %entry:
-	@sum_6 = alloc i32
-	store 0 , @sum_6
-	%0 = load @sum_6
-	%1 = call @t()
-	@result_0 = alloc i32
-	store 1 , @result_0
-	%2 = eq 0, %1
-	br 2, %lor0_0, %lor1_0
-%lor0_0:
-	%3 = call @f()
-	%4 = ne 0, %3
-	store %4 , @result_0
-	jump %lor1_0
-%lor1_0:
-	%5 = load @result_0
-	%6 = add %0, %5
-	store %6 , @sum_6
-	%7 = load @sum_6
-	call @putint(%7)
-	call @putch(10)
-	%8 = load @sum_6
-	ret %8
+	store 10 , @n_0
+	@a_12 = alloc [i32, 10]
+	%92 = getelemptr @a_12, 0
+	store 4 , %92
+	%93 = getelemptr @a_12, 1
+	store 3 , %93
+	%94 = getelemptr @a_12, 2
+	store 9 , %94
+	%95 = getelemptr @a_12, 3
+	store 2 , %95
+	%96 = getelemptr @a_12, 4
+	store 0 , %96
+	%97 = getelemptr @a_12, 5
+	store 1 , %97
+	%98 = getelemptr @a_12, 6
+	store 6 , %98
+	%99 = getelemptr @a_12, 7
+	store 5 , %99
+	%100 = getelemptr @a_12, 8
+	store 7 , %100
+	%101 = getelemptr @a_12, 9
+	store 8 , %101
+	@i_12 = alloc i32
+	store 0 , @i_12
+	%102 = getelemptr @a_12, 0
+	%103 = load @n_0
+	%104 = call @heap_sort(%102, %103)
+	store %104 , @i_12
+	jump %while_entry_6
+%while_entry_6:
+	%105 = load @i_12
+	%106 = load @n_0
+	%107 = lt %105, %106
+	br %107, %while_body_6, %while_end_6
+%while_body_6:
+	@tmp_13 = alloc i32
+	%108 = load @i_12
+	%109 = getelemptr @a_12, %108
+	%110 = load %109
+	store %110 , @tmp_13
+	%111 = load @tmp_13
+	call @putint(%111)
+	store 10 , @tmp_13
+	%112 = load @tmp_13
+	call @putch(%112)
+	%113 = load @i_12
+	%114 = add %113, 1
+	store %114 , @i_12
+	jump %while_entry_6
+%while_end_6:
+	ret 0
 }
 
